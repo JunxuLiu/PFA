@@ -12,12 +12,17 @@ matplotlib.rcParams['text.usetex'] = True
 matplotlib.rcParams['axes.unicode_minus'] = False
 #doc.generate_pdf(clean_tex=False, compiler='pdfLaTeX')
 
-epsilons = {'epsilons1':'0.5(prob=0.9), 10(prob=0.1)',
-			'epsilons2':'1.0(prob=0.9), 10(prob=0.1)'}
+epsilons = {'epsilons1':'MixGauss\n0.5(prob=0.9), 10(prob=0.1)',
+			'epsilons2':'MixGauss\n1.0(prob=0.9), 10(prob=0.1)',
+			'epsilons4':'MixGauss\n1.0(prob=0.9), 10(prob=0.1)',
+			'epsilons5':'MixGauss\n1.0(prob=0.9), 10(prob=0.1)',
+			'epsilonsu':'Uniform\n[1.0, 10.0]'}
+
 colors = ['red','blue','green','orange']
-markers = ['s','x','o','s']
+markers = ['s','x','o','.']
 fillstyles = ['none','none','none','none']
-labels = ['Pfizer', 'WeiAvg', 'Fedavg', 'NP-FedAvg']
+filelist = ['pro1_256', 'wavg', 'fedavg', 'nodp']
+labels = [r'Pfizer', r'WeiAvg', r'Fedavg', r'NP-FedAvg']
 
 def read_data(filename):
 
@@ -52,13 +57,13 @@ def plotTestAcc(wfile, epsilons, ax=None, x=None, xlabel='xlabel', y=None):
 		ax.plot(x, y[i], color=colors[i], linewidth=1.5, linestyle="-", marker=markers[i], fillstyle=fillstyles[i], label=labels[i])
 
 	ax.tick_params(direction="in")
-	ax.legend(loc='best')
+	ax.legend(loc='lower left')
 
 	ax.set_title('epsilons: {}'.format(epsilons), fontsize=14)
-	ax.set_xlabel(xlabel, fontsize=14)
-	ax.set_ylabel('Test Accuracy', fontsize=14)
+	
 	ax.axis((None, None, 0, 1.0)) # (x_min, x_max, y_min, y_max)
 	ax.grid(True)
+
 	'''
 	# add annotations on the figure
 	ax.annotate("End Point",
@@ -67,10 +72,33 @@ def plotTestAcc(wfile, epsilons, ax=None, x=None, xlabel='xlabel', y=None):
                 xycoords="data")
 	'''
 	if not subplot:
+		ax.set_xlabel(xlabel, fontsize=14)
+		ax.set_ylabel('Test Accuracy', fontsize=14)
 		# plot and use space most effectively
 		fig.tight_layout()
 		fig.savefig(wfile)
 		plt.show()
+
+
+def plotTestAccGroup(wfile, x, xlabel, y):
+	
+	fig, ax = plt.subplots(1, 5, figsize=(24,5), dpi=100)
+	for i in range(len(epsilons.keys())):
+		plotTestAcc(wfile, list(epsilons.values())[i], ax=ax[i], x=x, xlabel=xlabel, y=y[i])
+
+	fig.suptitle("Method Comparison", fontsize=20)
+	fig.text(0.5, 0.02, 'Communication Rounds (total number of SGD iterations is 10000)', ha='center', fontsize=20)
+	fig.text(0.005, 0.5, 'Test Accuracy', va='center', rotation='vertical', fontsize=20)
+
+	# Fine-tune figure; hide x ticks for top plots and y ticks for right plots
+	#plt.setp([a.get_xticklabels() for a in ax[:]], visible=False)
+	#plt.setp([a.get_yticklabels() for a in ax[1:]], visible=False)
+	#plt.setp(labels, rotation=45)
+
+	fig.tight_layout()
+	fig.subplots_adjust(top=0.82, bottom=0.12, left=0.03, wspace = 0.1, hspace = 0)
+	fig.savefig(wfile)
+	plt.show()
 
 def plotConvergence(wfile, epsilons, num_clients, ax=None, x=None, y=None):
 	# y
@@ -86,9 +114,9 @@ def plotConvergence(wfile, epsilons, num_clients, ax=None, x=None, y=None):
 		ax = fig.add_subplot(1, 1, 1)
 		subplot = False
 
-	ax.plot(x, y[0][:m], color="red", linewidth=1.5, linestyle="-", label=r"Pfizer")
-	ax.plot(x, y[1][:m], color="blue", linewidth=1.5, linestyle="-", label=r"WeiAvg")
-	ax.plot(x, y[2][:m], color="yellow", linewidth=1.5, linestyle="-", label=r"FedAvg")
+	for i in range(len(labels)):
+		ax.plot(x, y[i][:m], color=colors[i], linewidth=1.5, linestyle="-", label=labels[i])
+
 	ax.tick_params(direction="in")
 	ax.legend(loc='upper left')
 	
@@ -106,7 +134,7 @@ def plotConvergence(wfile, epsilons, num_clients, ax=None, x=None, y=None):
 	ax.set_title('N={}'.format(num_clients), fontsize=20)
 	if not subplot:
 		# plot and use space most effectively
-		ax.set(	xlabel='Communication Rounds', \
+		ax.set(	xlabel=r'Communication Rounds', \
 				ylabel=r'Test Accuracy')
 
 		# Fine-tune figure; hide x ticks for top plots and y ticks for right plots
@@ -166,28 +194,51 @@ def ConvergenceGroup(wfilepath, epsilon, *files):
 	plotConvergenceGroup(wfile, epsilon, x_axis, res)
 
 
-def MethodComp(wfilepath, epsilon, *files):
+def MethodRes(version):
+
+	res = []
+	for eid in range(len(epsilons.keys())):
+
+		pros = []
+		wavgs = []
+		fedavgs = []
+		nodps = []
+
+		for i in range(version):
+			rfilepath = os.path.join(os.getcwd(), 'res', dataset, model, isIID, list(epsilons.keys())[eid], 'v{}'.format(i+1))
+			pro, wavg, fedavg, nodp = read_results(rfilepath, filelist)
+			pros.append(np.mean([values[-10:] for values in pro], axis=1))
+
+			wavgs.append(np.mean([values[-10:] for values in wavg], axis=1))
+			fedavgs.append(np.mean([values[-10:] for values in fedavg], axis=1))
+			nodps.append(np.mean([values[-10:] for values in nodp], axis=1))
+
+		pro_avg = np.mean(pros, axis=0)
+		wavg_avg = np.mean(wavgs, axis=0)
+		fedavg_avg = np.mean(fedavgs, axis=0)
+		nodp_avg = np.mean(nodps, axis=0)
+
+		res.append([pro_avg, wavg_avg, fedavg_avg, nodp_avg])
+
+	print(res)
+	return res
+
+'''
+def MethodCompSingle(wfilepath, eid, res):
 	x_axis = ['10(6000)', '20(3000)', '30(2000)', '40(1500)', '50(1200)']
 	xlabel = 'Number of Clients(Local dataset size)'
 
-	res = []
-	for x in range(len(x_axis)):
-		res_tmp = []
-		for i in range(len(files)):
-			res_comb = []
-			for j in range(len(files[i])):
-				res_comb += files[i][j][x][-10:]
-			avg10 = np.mean(res_comb)
-			res_tmp.append(avg10)
-
-		#pro_avg10 = np.mean(pro1_256[x][-10:] + pro1_256_v2[x][-10:])
-		#wavg_avg10 = np.mean(wavg[x][-10:] + wavg_v2[x][-10:])
-		#fedavg_avg10 = np.mean(fedavg[x][-10:] + fedavg_v2[x][-10:])
-		res.append(res_tmp)
-
-	res = np.array(res).T.tolist()
-	wfile = os.path.join(wfilepath, 'acc_methods.png')
+	wfile = os.path.join(wfilepath, 'acc_methods_eps{}.png'.format(eid))
 	plotTestAcc(wfile, epsilon, x=x_axis, xlabel=xlabel, y=res)
+'''
+
+def MethodCompGroup(wfilepath, res):
+	x_axis = ['10(6000)', '20(3000)', '30(2000)', '40(1500)', '50(1200)']
+	xlabel = 'Number of Clients(Local dataset size)'
+
+	wfile = os.path.join(wfilepath, 'acc_methods.png')
+	plotTestAccGroup(wfile, x=x_axis, xlabel=xlabel, y=res)
+
 
 
 def DimensionComp(wfilepath, epsilon, files):
@@ -207,33 +258,27 @@ def DimensionComp(wfilepath, epsilon, files):
 if __name__ == "__main__":
 
 	dataset = 'mnist'
+	model = 'lr'
+	isIID = 'iid'
 	eid = 0
-	wfilepath = os.path.join(os.getcwd(), 'figures', dataset, list(epsilons.keys())[eid])
+	#wfilepath = os.path.join(os.getcwd(), 'figures', dataset, model, isIID, list(epsilons.keys())[eid])
+	#rfilepath = os.path.join(os.getcwd(), 'res', dataset, model, isIID, list(epsilons.keys())[eid], 'v1')
 
-	
-	rfilepath = os.path.join(os.getcwd(), 'res', dataset, list(epsilons.keys())[eid], 'v1')
-	filelist = ['pro1_256', 'wavg', 'fedavg']
-	pro1_256, wavg, fedavg = read_results(rfilepath, filelist)
-	'''
+	#pro1_256, wavg, fedavg, nodp = read_results(rfilepath, filelist)
 	## fig 1
 	# Converegnce, single
-	# ConvergenceSingle(wfilepath, epsilons, 20, pro1_256, wavg, fedavg)
+	#ConvergenceSingle(wfilepath, epsilons, 20, pro1_256, wavg, fedavg, nodp)
 
 	## fig 2
 	# Convergence, group
-	# ConvergenceGroup(wfilepath, list(epsilons.values())[eid], pro1_256, wavg, fedavg)
-	'''
-	
-	#DSize1500Converge
-	'''
+	#ConvergenceGroup(wfilepath, list(epsilons.values())[eid], pro1_256, wavg, fedavg, nodp)
+
 	## fig 3
 	# test acc, methods
-	rfilepath = os.path.join(os.getcwd(), 'res', dataset, list(epsilons.keys())[eid], 'v2')
-	filelist = ['pro1_256', 'wavg', 'fedavg']
-	pro1_256_v2, wavg_v2, fedavg_v2 = read_results(rfilepath, filelist)
+	wfilepath = os.path.join(os.getcwd(), 'figures', dataset, model, isIID)
+	res = MethodRes(version=1)
+	MethodCompGroup(wfilepath, res)
 	
-	MethodComp(wfilepath, list(epsilons.values())[eid], (pro1_256, pro1_256_v2), (wavg, wavg_v2), (fedavg, fedavg_v2))
-	'''
 	'''
 	## fig 4
 	# test acc, dimensions
