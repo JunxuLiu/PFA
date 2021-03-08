@@ -108,17 +108,10 @@ def create_noniid_clients(num_clients, num_examples, num_classes, num_examples_p
     :param dir: where to store
     :return: _
     '''
-    '''
-    if os.path.exists(dir + '/'+str(num)+'_clients.pkl'):
-        print('Client exists at: '+dir + '/'+str(num)+'_clients.pkl')
-        return
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-    '''
-    print('Number of classes per client {}',format(num_examples_per_client))
+    print('Number of classes per client {}'.format(num_classes_per_client))
     classes_per_client = num_classes_per_client
     examples_per_client = num_examples_per_client
-    file_path = os.path.join(path, '{}_{}_{}_clients.pkl'.format(num_clients, examples_per_client, examples_per_client))
+    file_path = os.path.join(path, '{}_{}_{}_clients.pkl'.format(num_clients, examples_per_client, classes_per_client))
     if os.path.exists(os.path.join(file_path)):
         print('Client exists at: {}'.format(file_path))
         client_set = pickle.load(open(file_path, 'rb'))
@@ -127,10 +120,10 @@ def create_noniid_clients(num_clients, num_examples, num_classes, num_examples_p
     if not os.path.exists(path):
         os.makedirs(path)
 
-    
     buckets = [] # 60000 = 10 * 6000
     for k in range(num_classes):        
         temp = np.array(k * int(num_examples / num_classes) + np.random.permutation(int(num_examples / num_classes)))
+        print('temp:{}'.format(temp))
         '''
         for j in range(int(num_clients / 10)):
             temp = np.hstack((temp, k * int(num_examples / num_classes) + np.random.permutation(int(num_examples / num_classes))))
@@ -172,4 +165,5 @@ def create_noniid_clients(num_clients, num_examples, num_classes, num_examples_p
     #filehandler.close()
     #print('client created at: '+ dir + '/' + str(num_clients) + '_clients.pkl')
 
-
+if __name__ == '__main__':
+    client_set = create_noniid_clients(num_clients=10, num_examples=60000, num_classes=10, num_examples_per_client=6000, num_classes_per_client=8, path='.')
