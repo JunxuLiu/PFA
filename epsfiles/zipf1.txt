@@ -1,0 +1,2 @@
+dist	5.0
+threshold       1.0
