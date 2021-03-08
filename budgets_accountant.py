@@ -1,4 +1,3 @@
-
 import numpy as np
 import copy
 import math
@@ -6,10 +5,15 @@ import math
 from tensorflow_privacy.privacy.analysis import compute_dp_sgd_privacy_lib
 
 class BudgetsAccountant:
-  def __init__(self, N, eps_list, delta, noise_multiplier, comm_gap, priv_threshold, accumulation=None):
+  def __init__(self, N, \
+               eps_list, delta, \
+               noise_multiplier, \
+               comm_gap, priv_threshold, \
+               accumulation=None):
+
     self._init = copy.deepcopy(eps_list)
-    self._public = list(np.where(np.array(self._init) >= priv_threshold)[0])
-    self._private = list(set(range(N)).difference(set(self._public)))
+    self._public = None if priv_threshold is None else list(np.where(np.array(self._init) >= priv_threshold)[0])
+    self._private = None if self._public is None else list(set(range(N)).difference(set(self._public)))
     self._remainder = copy.deepcopy(eps_list)
 
     if accumulation is None:
@@ -34,13 +38,16 @@ class BudgetsAccountant:
     return self._finished
 
   def precheck(self, N, client_set, batch_size):
+    '''check '''
+    # `idx` refers to the clients which have already finished.
     idx = np.where(np.array(self._finished) == False)[0].tolist()
     s = []
 
+    # Then we need to find the clients that will exhaust their budgets in the following round.
+    # These clients will also set as 'finished' and are not allowed to participate the rest training.
+    # Other clients will be added to `s` and seen as the candidates of the following round.
     for c in idx:
-
       tmp_round = self._round[c] + self._comm_gap
-#     if self._step_accum[c] == 0:
       '''
       tmp_delta, _ = compute_dp_sgd_privacy_lib.compute_dp_sgd_privacy(
             len(client_set[c]), FLAGS.client_batch_size, self._noise_multiplier[c],
@@ -52,10 +59,8 @@ class BudgetsAccountant:
             tmp_round, float(self._delta))
       '''
       q = batch_size*1.0 / len(client_set[c])
-#      print(q, tmp_round)
       tmp_accum = 10 * q * math.sqrt(tmp_round*(-math.log10(self._delta))) / self._noise_multiplier[c]
       #tmp_accum = tmp_round * self._step_accum[c]
-#      print(c, tmp_accum)
       if tmp_accum > self._init[c]:
         self.set_finished(c)
       else:

@@ -96,7 +96,7 @@ def create_iid_clients(num_clients, num_examples, num_classes, num_examples_per_
     print('client created at: {}'.format(file_path))
     return client_set
 
-def create_noniid_clients(num_clients, num_examples, num_classes, num_examples_per_client, path):
+def create_noniid_clients(num_clients, num_examples, num_classes, num_examples_per_client, num_classes_per_client, path):
     '''
     This function creates clients that hold non-iid MNIST data accroding to the experiments in 
     https://research.google.com/pubs/pub44822.html. (it actually just creates indices that point 
@@ -115,8 +115,10 @@ def create_noniid_clients(num_clients, num_examples, num_classes, num_examples_p
     if not os.path.exists(dir):
         os.makedirs(dir)
     '''
+    print('Number of classes per client {}',format(num_examples_per_client))
+    classes_per_client = num_classes_per_client
     examples_per_client = num_examples_per_client
-    file_path = os.path.join(path, '{}_{}_clients.pkl'.format(num_clients, examples_per_client))
+    file_path = os.path.join(path, '{}_{}_{}_clients.pkl'.format(num_clients, examples_per_client, examples_per_client))
     if os.path.exists(os.path.join(file_path)):
         print('Client exists at: {}'.format(file_path))
         client_set = pickle.load(open(file_path, 'rb'))
@@ -137,20 +139,27 @@ def create_noniid_clients(num_clients, num_examples, num_classes, num_examples_p
         buckets = np.hstack((buckets, temp))
         print('buckets.len: ', len(buckets))
 
-    shards = 2 * num_clients # 20
+    shards = classes_per_client * num_clients # 20
     print('buckets.shape:', buckets.shape, 'shards', shards) # buckets.shape: (10 * 6000)
     perm = np.random.permutation(shards) # 20
 
     # client_set will be of length num_examples/N and each element represents a client.
     client_set = []
+    extra = len(buckets) % shards
+    if extra:
+        buckets = buckets[:-extra]
     ind_list = np.split(buckets, shards) # 60000/20 = 3000
     print('ind_list.len:', len(ind_list))
-    for j in range(0, shards, 2):
+
+    for j in range(0, shards, classes_per_client):
         # each entry of z is associated to two shards. the two shards are sampled randomly by using the permutation matrix
         # perm and stacking two shards together using vstack. Each client now holds 2500*2 datapoints.
-        client_set.append(np.hstack((ind_list[int(perm[j])], ind_list[int(perm[j + 1])])))
+        temp = []
+        for k in range(classes_per_client):
+            temp = np.hstack((temp, ind_list[int(perm[j+k])]))
+        client_set.append(temp)
         # shuffle the data in each element of z, so that each client doesn't have all digits stuck together.
-        perm_2 = np.random.permutation(int(2 * len(buckets) / shards))
+        perm_2 = np.random.permutation(len(temp))
         client_set[-1] = client_set[-1][perm_2]
     
     filehandler = open(file_path, "wb")

@@ -12,11 +12,13 @@ import os
 import pickle
 import math
 import time
+import re
 #import copy
 import tensorflow.compat.v1 as tf
 import numpy as np
 from utils import global_step_creator, sampling, Vname_to_FeedPname, Vname_to_Pname, print_new_comm_round, save_progress, \
-                  print_loss_and_accuracy, print_new_comm_round, set_epsilons
+                  print_loss_and_accuracy, print_new_comm_round
+from dpsgd_utils import set_epsilons, compute_noise_multipliers
 from data_reader import load_dataset
 from create_clients import create_iid_clients, create_noniid_clients
 from budgets_accountant import BudgetsAccountant
@@ -34,6 +36,7 @@ flags.DEFINE_enum('model', 'cnn', ['lr', 'cnn', '2nn'], 'Which model to use. Thi
                 'can be a convolutional model (cnn) or a two hidden-layer '
                 'densely connected network (2nn).')
 flags.DEFINE_boolean('noniid', False, 'If True, train with noniid data distribution.')
+flags.DEFINE_integer('noniid_level', 2, 'Classes per client.')
 flags.DEFINE_integer('N', 10,
                    'Total number of clients.')
 flags.DEFINE_integer('max_steps', 10000,
@@ -63,7 +66,7 @@ flags.DEFINE_integer('local_steps', 50,
 
 # Personalized privacy flags
 flags.DEFINE_enum('sample_mode', None, ['R','W1','W2'], 'Samping mechanism: '
-                  'R for random sample, W for weighted sample and None')
+                  'R for random sample, W for weighted sample and None for full participation.')
 flags.DEFINE_float('sample_ratio', 0.1, 'Sample ratio.')
 
 # weighted average
@@ -89,23 +92,31 @@ FLAGS = flags.FLAGS
 
 def main(unused_argv):
 
+  #print('hello world.')
+  #print(flags.fedavg, (re.search('min', flags.eps) or re.search('max', flags.eps)))
+  if re.search('min', FLAGS.eps) or re.search('max', FLAGS.eps):
+    assert FLAGS.fedavg, 'min or max setting are only applicable for fedavg case.'
+
   print(FLAGS.model)
   project_path = os.getcwd()
+
   # load dataset
   x_train, y_train, x_test, y_test = load_dataset(FLAGS.dataset, project_path)
   print('x_train:{} y_train:{} / x_test:{}, y_test:{}'.format(len(x_train), len(y_train), len(x_test), len(y_test)))
+
   # split data
   client_set_path = os.path.join(project_path, 
                                  'dataset', FLAGS.dataset, \
                                  'clients', \
                                  ('noniid' if FLAGS.noniid else 'iid'), \
                                  'v{}'.format(FLAGS.version))
+
   #client_set_path = project_path + '/dataset/' + FLAGS.dataset + '/clients/' + ('noniid' if FLAGS.noniid else 'iid')
   client_dataset_size = len(x_train) // FLAGS.N if FLAGS.client_dataset_size is None else FLAGS.client_dataset_size
   if not FLAGS.noniid:
     client_set = create_iid_clients(FLAGS.N, len(x_train), 10, client_dataset_size, client_set_path)
-  else:  
-    client_set = create_noniid_clients(FLAGS.N, len(x_train), 10, client_dataset_size, client_set_path)
+  else:
+    client_set = create_noniid_clients(FLAGS.N, len(x_train), 10, client_dataset_size, FLAGS.noniid_level, client_set_path)
   print('client dataset size: {}'.format(len(client_set[0])))
 
   COMM_ROUND = int(FLAGS.max_steps / FLAGS.local_steps)
@@ -113,27 +124,27 @@ def main(unused_argv):
 
   # set personalized privacy budgets  
   if FLAGS.dpsgd:
-    if (FLAGS.eps == 'epsilons' or FLAGS.eps == 'epsilonsu'):
-        epsilons, threshold = set_epsilons(FLAGS.eps, FLAGS.N, is_distributions = False)
-    else:
-        epsilons, threshold = set_epsilons(FLAGS.eps, FLAGS.N, is_distributions = True)
-
+    # simulate the privacy perferences for all clients. `epsilons` is a list with length N.
+    # `threshold` is a real value. If a client's privacy preference is larger than threshold, 
+    # then this client is seen as a public client to construct the projection matrix.
+    epsilons, threshold = set_epsilons(FLAGS.eps, FLAGS.N)
     print('epsilons:{}, \nthreshold:{}'.format(epsilons, threshold))
 
-    noise_multiplier = []
-    for i in range(FLAGS.N):
-      q = FLAGS.client_batch_size / len(client_set[i])
-      nm = 10 * q * math.sqrt(FLAGS.max_steps * FLAGS.sample_ratio * (-math.log10(FLAGS.delta))) / epsilons[i]
-      noise_multiplier.append(nm)
+    # `noise_multiplier` is a parameter in tf_privacy package, which is also the gaussian distribution
+    # parameter for random noise.
+    noise_multiplier = compute_noise_multipliers(num_clients = FLAGS.N, \
+                                                 client_data = client_set,\
+                                                 L = FLAGS.client_batch_size,\
+                                                 epsilons = epsilons,\
+                                                 T = FLAGS.max_steps * FLAGS.sample_ratio,\
+                                                 delta = FLAGS.delta)
     print('noise_multiplier:', noise_multiplier)
-    budgets_accountant = BudgetsAccountant(FLAGS.N, epsilons, FLAGS.delta, noise_multiplier, FLAGS.local_steps, threshold)
 
-
-  if FLAGS.sample_mode is None:
-    m = FLAGS.N
-  else:
-    m = int(FLAGS.sample_ratio * FLAGS.N)
-  print('number of clients per round: {}'.format(m))
+    # simulate the budget accountant and assign one for each client if dpsgd
+    budgets_accountant = BudgetsAccountant(FLAGS.N, epsilons, FLAGS.delta, \
+                                           noise_multiplier, \
+                                           FLAGS.local_steps, \
+                                           threshold)
  
   start_time = time.time()
 
@@ -172,6 +183,7 @@ def main(unused_argv):
 
       #sess.run(tf.global_variables_initializer())
       sess.run(tf.initialize_all_variables())
+
       # initial global model and errors
       model = dict(zip([Vname_to_FeedPname(var) for var in tf.trainable_variables()],
                        [sess.run(var) for var in tf.trainable_variables()]))
@@ -181,7 +193,6 @@ def main(unused_argv):
       #server.set_global_model(model)
 
       # initial server aggregation
-      #w = weights if FLAGS.wei_avg else None
       server = ServerAggregation(model, FLAGS.dpsgd, FLAGS.projection, FLAGS.proj_dims, FLAGS.lanczos_iter, FLAGS.wei_avg)
 
       # initial local update
@@ -190,12 +201,10 @@ def main(unused_argv):
       for r in range(COMM_ROUND):
         print_new_comm_round(r)
         comm_start_time = time.time()
+
         # select the participating clients
-        if FLAGS.dpsgd:
-          participating_clients = sampling(FLAGS.N, m, client_set, FLAGS.client_batch_size, \
-                                           FLAGS.sample_mode, budgets_accountant)
-        else:
-          participating_clients = range(FLAGS.N) # temporary
+        participating_clients = sampling(FLAGS.N, client_set, FLAGS.client_batch_size, \
+                                         FLAGS.sample_ratio, FLAGS.sample_mode, budgets_accountant)
 
         # if the condition of training cannot be satisfied. (no public clients or no sufficient candidates.
         if not len(participating_clients):
@@ -213,7 +222,7 @@ def main(unused_argv):
           # Setting the trainable Variables in the graph to the values stored in feed_dict 'model'
           #sess.run(assignments, feed_dict=model)
           update = local.update(sess, assignments, c, model, FLAGS.local_steps, train_op_list[c])
-          server.aggregate(c, update, is_public = (c in budgets_accountant._public if FLAGS.dpsgd else True))
+          server.aggregate(c, update, is_public = (c in budgets_accountant._public if FLAGS.projection else True))
 
           if FLAGS.dpsgd:
             print('For client %d and delta=%f, the budget is %f and the used budget is: %f' %
@@ -227,6 +236,7 @@ def main(unused_argv):
           n_clients = len(participating_clients)
           w = np.array([1/n_clients] * n_clients)
           print(w)
+
         elif FLAGS.wei_avg:
           epsSubset = np.array(epsilons)[participating_clients]
           eps_sum = sum(epsSubset)
@@ -259,9 +269,9 @@ def main(unused_argv):
           save_progress(FLAGS, model, accuracy_accountant, budgets_accountant.get_global_budget())
         else:
           save_progress(FLAGS, model, accuracy_accountant)
-        
 
     print('Done! The procedure time:', time.time() - start_time)
 
 if __name__ == '__main__':
+
     app.run(main)

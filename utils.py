@@ -10,6 +10,7 @@ import pickle
 import math
 import heapq
 import csv
+import re
 #import copy
 import tensorflow.compat.v1 as tf
 import numpy as np
@@ -18,25 +19,13 @@ np.random.seed(10)
 def set_epsilons(filename, N, is_distributions = True):
 
     print('=========Epsilons Info========')
-    epsilons = []
+    with open('epsfiles/{}.txt'.format(filename), 'r') as rfile:
+        lines = rfile.readlines()
+        num_lines = len(lines)
 
-    if is_distributions:
-        '''you can assume the personal epsilons follows a mixture of several guassian distributions.
-
-        #format:
-        dist1 0.5 0.01
-        dist2 10 0.1
-        ...(or more)
-        threshold 1.0
-        prob 0.9 0.1 (num_dists values)
-
-        '''
-
-        with open('epsfiles/{}.txt'.format(filename), 'r') as rfile:
-            lines = rfile.readlines()
-            num_lines = len(lines)
+        if re.search('mixgauss', filename):
+            print('{} is a mix gaussian distribution.'.format(filename))
             dists = []
-            pr_dist = []
             for i in range(num_lines-2):
                 print(lines[i])
                 values = lines[i].split()
@@ -47,33 +36,74 @@ def set_epsilons(filename, N, is_distributions = True):
             pr_dist = [ float(x) for x in lines[num_lines-1].split()[1:] ]
             print('pr_list:{}, threshold:{}'.format(pr_dist, threshold))
 
-        for i in range(N):
-            dist_idx = np.argmax(np.random.multinomial(1, pr_dist)) 
-            eps = np.random.normal(dists[dist_idx]['mean'], dists[dist_idx]['std'])
-            epsilons.append(eps)
+            while(True):
+                epsilons = []
+                for i in range(N):
+                    dist_idx = np.argmax(np.random.multinomial(1, pr_dist))
+                    eps = np.random.normal(dists[dist_idx]['mean'], dists[dist_idx]['std'])
+                    #print(dist_idx,': ', eps)
+                    epsilons.append(eps)
 
-    elif filename == 'epsilons':
-        '''or you can directly provide the exact epsilons of each clients. Note that the total number
-        of epsilons should be equal to the number of clients N.
+                epsilons = np.array(epsilons)
+                if (len( epsilons [epsilons > threshold] ) > 0) :
+                    break
 
-        #format:
-        epsilons 0.5 0.5 0.5 0.5 ... (total N values)
-        threshold 1.0
+        elif re.search('gauss', filename):
+            print('{} is a gaussian distribution.'.format(filename))
+            values = lines[0].split()
+            dist = {'mean':float(values[1]), 'std':float(values[2])}
+            epsilons = np.random.normal(dist['mean'], dist['std'], N)
+            sorted_eps = np.sort(epsilons)
 
-        '''
-        with open('epsilons/{}.txt'.format(filename), 'r') as rfile:
-            lines = rfile.readlines()
-            epsilons = lines[0].split()[1:]
+            percent = 0.1
+            threshold = sorted_eps[-int(percent * N)]
+
+        elif re.search('uniform', filename):
+            print('{} is a uniform distribution.'.format(filename))
+            values = lines[0].split()[1:]
+            _min, _max = float(values[0]), float(values[1])
+            epsilons = np.random.uniform(_min, _max, N)
+            threshold = float(lines[1].split()[1])
+
+            while len( epsilons [epsilons > threshold] ) == 0:
+                epsilons = np.random.uniform(_min, _max, N)
+                if len( epsilons [epsilons > threshold] ) > 0:
+                    break
+
+        elif re.search('pareto', filename):
+            print('{} is a pareto distribution.'.format(filename))
+            x_m, alpha = float(lines[0].split()[1]), float(lines[0].split()[2])
+            print(x_m, alpha)
+            epsilons = (np.random.pareto(alpha, N) + 1) * x_m
+            #threshold = np.sort(epsilons)[::-1][int(N*0.2)-1]
+            threshold = 2 if N == 10 else 5
+
+        elif re.search('min', filename):
+            print('{} take the minimum value over all clients\' preferences.'.format(filename))
+            x_min = float(lines[0].split()[1])
+            print(x_min)
+            epsilons = [x_min] * N
+            threshold = None
+
+        elif re.search('max', filename):
+            print('{} take the maximum value over all clients\' preferences.'.format(filename))
+            x_max = float(lines[0].split()[1])
+            print(x_max)
+            epsilons = [x_max] * N
+            threshold = None
+
+        else:
+            '''or you can directly provide the exact epsilons of each clients. Note that the total number
+             of epsilons should be equal to the number of clients N.
+
+             #format:
+             epsilons 0.5 0.5 0.5 0.5 ... (total N values)
+             threshold 1.0
+            '''
+            print('{} is not a distribution.'.format(filename))
+            values = lines[0].split()[1:]
+            epsilons = [float(v) for v in values]
             threshold = float(lines[1][1])
-
-    else:
-        '''sample uniformly'''
-
-        epsilons = np.random.uniform(1.0, 10.0, N)
-        threshold = 9.0
-        while len( epsilons [epsilons > threshold] ) == 0:
-            epsilons = np.random.uniform(1.0, 10.0, N)
-
 
     print('epsilons:{}, total {} values.'.format(epsilons, len(epsilons)))
     return epsilons, threshold
@@ -132,17 +162,22 @@ def _top_k(items, weights, m):
     return [item[1] for item in heap]
 
 
-def sampling(N, m, client_set, client_batch_size, mode=None, ba=None):
+def sampling(N, client_set, client_batch_size, ratio, mode=None, ba=None):
     # Randomly choose a total of m (out of n) client-indices that participate in this round
     # randomly permute a range-list of length n: [1,2,3...n] --> [5,2,7..3]
+    m = int(N * ratio)
     update = lambda x: ba.update(x)
 
     s = ba.precheck(N, client_set, client_batch_size)
     if len(s) < m:
         return []
 
-    if mode == 'W' and len(s) > m:
-        print('mode:',mode)
+    if mode == 'None':
+        print('Full client participation.')
+        return s
+
+    elif mode == 'W' and len(s) > m:
+        print('Partial client participation with weighted(adaptive) sampling.')
         remainder = ba.get_remainder()
         print('remainder:', remainder)
         #s = _naive_weighted_sampling(s, remainder, m)
@@ -151,12 +186,16 @@ def sampling(N, m, client_set, client_batch_size, mode=None, ba=None):
         update(s_)
 
     else:
-        print('mode:',mode)
+        print('Partial client participation with ramdom sampling.')
         s_ = list(np.random.permutation(s))[0:m]
-
-        # just resample a vaild subset of clients no more than 5 times
-        # we require the subset contains at least 1 public client and 1 private client.
-        check = 50    
+        # Only when we are running Pfizer method, `ba._public` is not None.
+        # For FedAvg or WAVG or MIN/MAX, public clients are not necessary while sampling.
+        if ba._public is None:
+            update(s_)
+            return s_
+        
+        # For Pfizer, we require the subset contains at least 1 public and 1 private client.
+        check = 50
         while check and len(set(s_).intersection(set(ba._public))) == 0:
             check -= 1
             print('There are no public clients be sampled in this round.')
