@@ -40,7 +40,7 @@ def save_progress(FLAGS, model, Accuracy_accountant, Budgets_accountant=None):
     :param FLAGS: CLASS INSTANCE: The FLAGS passed to the learning procedure.
     :return: nothing
     '''
-    save_dir = os.path.join(os.getcwd(), 'res_{}'.format(FLAGS.version), FLAGS.dataset, FLAGS.model, ('noniid' if FLAGS.noniid else 'iid'), (FLAGS.eps if FLAGS.dpsgd else 'nodp'))
+    save_dir = os.path.join(os.getcwd(), 'res_{}'.format(FLAGS.version), FLAGS.dataset, FLAGS.model, ('noniid{}'.format(FLAGS.noniid_level) if FLAGS.noniid else 'iid'), (FLAGS.eps if FLAGS.dpsgd else 'nodp'))
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)

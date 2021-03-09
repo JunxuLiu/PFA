@@ -18,14 +18,15 @@ import re
 import tensorflow.compat.v1 as tf
 import numpy as np
 
-from modules import nets
+from modules.cnn import CNN
+from modules.logistic_reg import LogisticRegression
 from modules.client import Client
 from modules.server import Server
 from modules.budgets_accountant import BudgetsAccountant
 
 from data_reader import load_dataset
 from utils.create_clients import create_iid_clients, create_noniid_clients
-from utils.check import check_labels, save_progress, print_loss_and_accuracy, print_new_comm_round
+from utils.tools import check_labels, save_progress, print_loss_and_accuracy, print_new_comm_round
 from utils.dpsgd import set_epsilons, compute_noise_multiplier
 from utils.tf_frame import global_step_creator, Vname_to_FeedPname, Vname_to_Pname
 from utils.hparams import HParams
@@ -112,6 +113,11 @@ def prepare_local_data(project_path, dataset, nclients, noniid, version):
         client_set = create_noniid_clients(nclients, len(x_train), 10, 
                                       client_dataset_size, FLAGS.noniid_level, client_set_path)
 
+    print(y_train)
+    labels = [0]*10
+    for i in y_train:
+        labels[int(i)] += 1
+    print(labels)
     return x_train, y_train, x_test, y_test, client_set
 
 
@@ -130,12 +136,12 @@ def main(unused_argv):
         assert FLAGS.fedavg, 'min or max setting are only applicable for fedavg case.'
     print(FLAGS.model)
 
-    hp = HParams(loc_batch_size = FLAGS.client_batch_size, 
-                loc_num_microbatches = FLAGS.num_microbatches,
-                loc_lr = FLAGS.lr,
-                glob_steps = FLAGS.global_steps,
-                loc_steps = FLAGS.local_steps,
-                loc_l2_norm = FLAGS.l2_norm_clip)
+    hp = HParams(loc_batch_size=FLAGS.client_batch_size, 
+                loc_num_microbatches=FLAGS.num_microbatches, 
+                loc_lr=FLAGS.lr,
+                glob_steps=FLAGS.global_steps,
+                loc_steps=FLAGS.local_steps,
+                loc_l2_norm=FLAGS.l2_norm_clip)
 
     project_path = os.getcwd()
     # prepare the local dataset all clients
@@ -153,6 +159,7 @@ def main(unused_argv):
     print('priv_preferences: {}'.format(priv_preferences))
     clients = []
     for cid in range(FLAGS.N):
+
         print(client_set[cid])
         idx = [int(val) for val in client_set[cid]]
         client = Client(x_train=x_train[idx],
@@ -188,27 +195,29 @@ def main(unused_argv):
     # record the test accuracy of the training process.
     accuracy_accountant = []
     privacy_accountant = []
-
     start_time = time.time()
+
     # define tensors and operators in the graph 'g_c'
     with tf.Graph().as_default():
         # build model
-        data_placeholder, labels_placeholder = nets.init_placeholder(FLAGS.dataset)
-        eval_op, vector_loss, scalar_loss = nets.eval_model(hp, 
-                                    FLAGS.dataset, FLAGS.model, 
-                                    data_placeholder, labels_placeholder)
+        if FLAGS.model == 'lr':
+            model = LogisticRegression(FLAGS.dataset, FLAGS.lr, FLAGS.lr_decay)
+        elif FLAGS.model =='cnn':
+            model = CNN(FLAGS.dataset, FLAGS.lr, FLAGS.lr_decay)
+        else:
+            raise ValueError('No avaliable class in `./modules` matches the required model.')
 
+        if FLAGS.dpsgd:
+            model.set_dpsgd_params(l2_norm_clip = FLAGS.l2_norm_clip,
+                                num_microbatches = FLAGS.num_microbatches,
+                                noise_multiplier = clients[cid].ba.noise_multiplier)
+    
+        data_placeholder, labels_placeholder = model.init_placeholder()
+        eval_op, vector_loss, scalar_loss = model.eval_model()
         for cid in range(FLAGS.N):
-            train_op = nets.train_model( hparams=hp, 
-                                    dataset=FLAGS.dataset, 
-                                    model=FLAGS.model, 
-                                    lr=FLAGS.lr, 
-                                    lr_decay=FLAGS.lr_decay,
-                                    opt_loss=vector_loss if FLAGS.dpsgd else scalar_loss, 
-                                    noise_multiplier=clients[cid].ba.noise_multiplier 
-                                  )
-
-            clients[cid].set_ops( train_op, eval_op, vector_loss, scalar_loss, data_placeholder, labels_placeholder )
+            train_op = model.train_model()
+            clients[cid].set_ops( train_op, eval_op, vector_loss, scalar_loss, 
+                                data_placeholder, labels_placeholder )
 
         # increase and set global step
         increase_global_step, set_global_step = global_step_creator()
@@ -227,9 +236,9 @@ def main(unused_argv):
         assignments = [tf.assign(var, model_placeholder[Vname_to_FeedPname(var)])\
                        for var in tf.trainable_variables()]
 
-        with tf.Session(config=tf.ConfigProto(log_device_placement=False,
-                                allow_soft_placement=True,
-                                gpu_options=tf.GPUOptions(allow_growth=True))) as sess:
+        with tf.Session(config = tf.ConfigProto(log_device_placement=False,
+                                                allow_soft_placement=True,
+                                                gpu_options=tf.GPUOptions(allow_growth=True))) as sess:
 
             #sess.run(tf.global_variables_initializer())
             sess.run(tf.initialize_all_variables())
@@ -247,7 +256,7 @@ def main(unused_argv):
                 comm_start_time = time.time()
                 # precheck
                 candidates = [ cid for cid in range(FLAGS.N) if clients[cid].precheck() ]
-                
+
                 # select the participating clients
                 participants = server.sample_clients(candidates)
 

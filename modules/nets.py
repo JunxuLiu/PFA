@@ -228,7 +228,6 @@ def eval_model(hparams, dataset, model,
     return eval_op, vector_loss, scalar_loss
 
 
-
 def cifar10_model(FLAGS, eps_list=None, noise_multiplier=None):
 
     classifier = cnn_cifar10(data_placeholder)
@@ -247,7 +246,6 @@ def cifar10_model(FLAGS, eps_list=None, noise_multiplier=None):
       train_op_list = []
 
       for i in range(FLAGS.N):
-
         optimizer = dp_optimizer.DPGradientDescentGaussianOptimizer(
           l2_norm_clip=FLAGS.l2_norm_clip,
           noise_multiplier=noise_multiplier[i],
