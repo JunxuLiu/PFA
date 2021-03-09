@@ -53,7 +53,7 @@ def read_cifar10(dataset = "training", data_path = "."):
 
     return img, lbl
 
-def load_dataset(dataset, path):
+def load_dataset(path, dataset):
     # load the data
     if dataset == 'mnist' or 'fmnist':
         data_path = os.path.join(path, 'dataset', dataset)
@@ -83,4 +83,4 @@ def load_dataset(dataset, path):
     x_test = x_test.astype(float)
     y_test = y_test.astype(float)
 
-    return sorted_x_train, sorted_y_train, x_test, y_test
+    return np.array(sorted_x_train), np.array(sorted_y_train), np.array(x_test), np.array(y_test)
