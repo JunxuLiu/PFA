@@ -132,8 +132,10 @@ def main(unused_argv):
 
     #print('hello world.')
     #print(flags.fedavg, (re.search('min', flags.eps) or re.search('max', flags.eps)))
+    """
     if re.search('min', FLAGS.eps) or re.search('max', FLAGS.eps):
         assert FLAGS.fedavg, 'min or max setting are only applicable for fedavg case.'
+    """
     print(FLAGS.model)
 
     hp = HParams(loc_batch_size=FLAGS.client_batch_size, 
