@@ -70,7 +70,7 @@ class LogisticRegression(Model):
         return tf.reduce_mean(cross_entropy, name='xentropy_mean')
             
 
-    def __evaluation(self, logits, labels):
+    def evaluation(self, logits, labels):
         # For a classifier model, we can use the in_top_k Op.
         # It returns a bool tensor with shape [batch_size] that is true for
         # the examples where the label is in the top k (here k=1)
@@ -96,7 +96,7 @@ class LogisticRegression(Model):
 
         return logits
 
-    def __build_model(self, features):
+    def build_model(self, features):
         if self.dataset == 'mnist' or self.dataset == 'fmnist':
             return self.__lr_mnist(features)
         else:
@@ -149,7 +149,7 @@ class LogisticRegression(Model):
     def eval_model(self):
 
         # - logits : output of the [fully connected neural network] when fed with images.
-        logits = self.__build_model(self.data_placeholder)
+        logits = self.build_model(self.data_placeholder)
 
         # - loss : when comparing logits to the true labels.
         # Calculate loss as a vector (to support microbatches in DP-SGD).
@@ -159,7 +159,7 @@ class LogisticRegression(Model):
         scalar_loss = tf.reduce_mean(input_tensor=vector_loss)
 
         # - eval_correct : when run, returns the amount of labels that were predicted correctly.
-        eval_op = self.__evaluation(logits, self.labels_placeholder)
+        eval_op = self.evaluation(logits, self.labels_placeholder)
 
         # Add a scalar summary for the snapshot loss.
         tf.summary.scalar('loss', scalar_loss)

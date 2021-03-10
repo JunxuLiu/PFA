@@ -214,7 +214,8 @@ class Server(object):
     def init_alg(self, fedavg=False, weiavg=False, projection=True,\
                 dp=True, proj_dims=None, lanczos_iter=None):
 
-        if fedavg:
+    
+        if fedavg or (not dp):
             self.__alg = FedAvg()
 
         elif weiavg:

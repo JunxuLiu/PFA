@@ -50,7 +50,10 @@ class Client(object):
         self.labels_ph = labels_placeholder
         
     def precheck(self):
-        return self.ba.precheck(self.dataset_size, self.batch_size, self.loc_steps)
+        if self.ba is None:
+            return True
+        else:
+            return self.ba.precheck(self.dataset_size, self.batch_size, self.loc_steps)
 
     def local_update(self, sess, assignments, glob_model):
 
