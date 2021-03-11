@@ -38,13 +38,11 @@ class Client(object):
         '''set client's budget accountant'''
         self.ba = ba
 
-    def set_ops(self, train_op, eval_op, 
-                vector_loss, scalar_loss,
+    def set_ops(self, train_op, eval_op, scalar_loss,
                 data_placeholder, labels_placeholder):
 
         self.train_op = train_op
         self.eval_op = eval_op
-        self.vector_loss = vector_loss
         self.scalar_loss = scalar_loss
         self.data_ph = data_placeholder
         self.labels_ph = labels_placeholder
@@ -81,7 +79,7 @@ class Client(object):
         accum_bgts = self.ba.update(self.loc_steps) if self.ba is not None else None
 
         return updates, accum_bgts
-
+        
 
 class LocalUpdate(object):
 

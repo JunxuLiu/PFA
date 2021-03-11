@@ -99,8 +99,7 @@ def prepare_local_data(project_path, dataset, nclients, noniid, version):
           len(x_train), len(y_train), len(x_test), len(y_test)))
 
     # split the universal
-    client_set_path = os.path.join(project_path, 'dataset', dataset,
-                                  'clients', 
+    client_set_path = os.path.join(project_path, 'dataset', dataset, 'clients', 
                                   ('noniid' if noniid else 'iid'), 
                                   'v{}'.format(version))
 
@@ -203,7 +202,7 @@ def main(unused_argv):
     with tf.Graph().as_default():
         # build model
         if FLAGS.model == 'lr':
-            model = LogisticRegression(FLAGS.dataset, FLAGS.lr, FLAGS.lr_decay)
+            model = LogisticRegression(FLAGS.dataset, FLAGS.client_batch_size, FLAGS.lr, FLAGS.lr_decay)
         elif FLAGS.model =='cnn':
             model = CNN(FLAGS.dataset, FLAGS.lr, FLAGS.lr_decay)
         else:
@@ -212,14 +211,22 @@ def main(unused_argv):
         if FLAGS.dpsgd:
             model.set_dpsgd_params(l2_norm_clip = FLAGS.l2_norm_clip,
                                 num_microbatches = FLAGS.num_microbatches,
-                                noise_multiplier = clients[cid].ba.noise_multiplier)
-    
+                                noise_multipliers = [clients[cid].ba.noise_multiplier for cid in range(FLAGS.N)])
+        '''
         data_placeholder, labels_placeholder = model.init_placeholder()
-        eval_op, vector_loss, scalar_loss = model.eval_model()
+        #eval_op, vector_loss, scalar_loss = model.eval_model()
+        eval_op, loss = model.eval()
+        
         for cid in range(FLAGS.N):
-            train_op = model.train_model()
-            clients[cid].set_ops( train_op, eval_op, vector_loss, scalar_loss, 
+            train_op, eval_op, scalar_loss = model.train_and_eval()
+            #train_op = model.train_model()
+            clients[cid].set_ops( train_op, eval_op, scalar_loss, 
                                 data_placeholder, labels_placeholder )
+        '''
+        train_op_list, eval_op, loss, data_placeholder, labels_placeholder = model.get_model()
+        for cid in range(FLAGS.N):
+            clients[cid].set_ops( train_op_list[cid], eval_op, loss, 
+                                data_placeholder, labels_placeholder  )
 
         # increase and set global step
         increase_global_step, set_global_step = global_step_creator()
@@ -258,10 +265,8 @@ def main(unused_argv):
                 comm_start_time = time.time()
                 # precheck
                 candidates = [ cid for cid in range(FLAGS.N) if clients[cid].precheck() ]
-
                 # select the participating clients
                 participants = server.sample_clients(candidates)
-
                 # if the condition of training cannot be satisfied. 
                 # (no public clients or no sufficient candidates.
                 if len(participants) == 0:
@@ -276,7 +281,6 @@ def main(unused_argv):
                     #########################################################################################################
                     # Start local update
                     # Setting the trainable Variables in the graph to the values stored in feed_dict 'model'
-                    #sess.run(assignments, feed_dict=model)
                     update, accum_bgts = clients[cid].local_update(sess, assignments, model)
                     if accum_bgts is not None:
                         max_accum_bgts = max(max_accum_bgts, accum_bgts)
@@ -303,7 +307,7 @@ def main(unused_argv):
                             str(labels_placeholder.name): y_test}
 
                 # compute the loss on the validation set.
-                global_loss = sess.run(scalar_loss, feed_dict=feed_dict)
+                global_loss = sess.run(loss, feed_dict=feed_dict)
                 count = sess.run(eval_op, feed_dict=feed_dict)
                 accuracy = float(count) / float(len(y_test))
                 accuracy_accountant.append(accuracy)

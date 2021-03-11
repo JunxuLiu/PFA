@@ -50,7 +50,6 @@ class ServerOperation(metaclass=abc.ABCMeta):
 
         new_weights = [glob_model[keys[i]] - mean_updates[i] for i in range(num_vars)]
         new_model = dict(zip(keys, new_weights))
-
         return new_model
 
 
@@ -145,6 +144,7 @@ class Pfizer(ServerOperation):
 
 
     def __project_priv_updates(self, num_vars, shape_vars):
+
         if len(self.__priv_updates):
             mean_priv_updates = [np.mean(self.__priv_updates[i], 0) for i in range(num_vars)]
             mean_pub_updates = [np.mean(self.__pub_updates[i], 0) for i in range(num_vars)]
@@ -213,7 +213,6 @@ class Server(object):
 
     def init_alg(self, fedavg=False, weiavg=False, projection=True,\
                 dp=True, proj_dims=None, lanczos_iter=None):
-
     
         if fedavg or (not dp):
             self.__alg = FedAvg()
