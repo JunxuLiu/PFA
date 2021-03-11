@@ -188,7 +188,7 @@ class LogisticRegression(Model):
         return eval_op, vector_loss, scalar_loss
 
 
-    def get_model(self):
+    def get_model(self, num_clients):
         # - placeholder for the input Data (in our case MNIST), depends on the batch size specified in C
         img_size = IMAGE_SIZE[self.dataset]
         img_pixels = img_size[0] * img_size[1] * img_size[2]
@@ -236,10 +236,10 @@ class LogisticRegression(Model):
         # Create the gradient descent optimizer with the given learning rate.
         if self.dpsgd:
             train_op_list = []
-            for noise_multiplier in self.noise_multipliers:
+            for cid in range(num_clients):
                 optimizer = dp_optimizer.DPGradientDescentGaussianOptimizer(
                     l2_norm_clip=self.l2_norm_clip,
-                    noise_multiplier=noise_multiplier,
+                    noise_multiplier=self.noise_multipliers[cid],
                     num_microbatches=self.num_microbatches,
                     learning_rate=learning_rate)
                 opt_loss = vector_loss
@@ -251,7 +251,7 @@ class LogisticRegression(Model):
                 learning_rate=learning_rate)
             opt_loss = scalar_loss
             train_op = optimizer.minimize(loss=opt_loss, global_step=global_step)
-            train_op_list = [train_op] * FLAGS.N
+            train_op_list = [train_op] * num_clients
 
         return train_op_list, eval_op, scalar_loss, data_placeholder, labels_placeholder
 
