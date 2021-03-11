@@ -223,7 +223,7 @@ def main(unused_argv):
             clients[cid].set_ops( train_op, eval_op, scalar_loss, 
                                 data_placeholder, labels_placeholder )
         '''
-        train_op_list, eval_op, loss, data_placeholder, labels_placeholder = model.get_model()
+        train_op_list, eval_op, loss, data_placeholder, labels_placeholder = model.get_model(FLAGS.N)
         for cid in range(FLAGS.N):
             clients[cid].set_ops( train_op_list[cid], eval_op, loss, 
                                 data_placeholder, labels_placeholder  )
