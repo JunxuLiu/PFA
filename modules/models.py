@@ -77,7 +77,7 @@ class Model(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def build_model():
          """Given input features, returns the logits from a ML model."""
-
+    """
     @abc.abstractmethod
     def train_model():
         pass
@@ -85,6 +85,5 @@ class Model(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def eval_model():
         pass
-
-
+    """
 

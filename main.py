@@ -204,7 +204,7 @@ def main(unused_argv):
         if FLAGS.model == 'lr':
             model = LogisticRegression(FLAGS.dataset, FLAGS.client_batch_size, FLAGS.lr, FLAGS.lr_decay)
         elif FLAGS.model =='cnn':
-            model = CNN(FLAGS.dataset, FLAGS.lr, FLAGS.lr_decay)
+            model = CNN(FLAGS.dataset, FLAGS.client_batch_size, FLAGS.lr, FLAGS.lr_decay)
         else:
             raise ValueError('No avaliable class in `./modules` matches the required model.')
 
