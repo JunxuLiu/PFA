@@ -112,6 +112,8 @@ class Pfizer(ServerOperation):
     def aggregate(self, update, is_public=False):
         num_vars = len(update)
         update_1d = [u.flatten() for u in update]
+        for u in update_1d:
+            print(len(u))
         aggregate_fn = lambda var1, var2 : self._add_one(num_vars, var1, var2)
         if is_public:
             #print('is_public')

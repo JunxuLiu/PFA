@@ -74,6 +74,8 @@ flags.DEFINE_enum('sample_mode', None, ['R','W1','W2'],
                   'None for full participation.')
 flags.DEFINE_float('sample_ratio', 0.1, 'Sample ratio.')
 
+# minimum epsilon
+flags.DEFINE_boolean('min', False, 'If True, train eps_min dp.')
 # weighted average
 flags.DEFINE_boolean('weiavg', False, 'If True, train with weighted averaging.')
 # fedavg
@@ -158,9 +160,9 @@ def main(unused_argv):
     # otherwise return a list of epsilon with size FLAGS.N
     priv_preferences = prepare_priv_preferences(FLAGS.eps, FLAGS.N)
     print('priv_preferences: {}'.format(priv_preferences))
+
     clients = []
     for cid in range(FLAGS.N):
-
         print(client_set[cid])
         idx = [int(val) for val in client_set[cid]]
         client = Client(x_train=x_train[idx],
@@ -212,18 +214,10 @@ def main(unused_argv):
             model.set_dpsgd_params(l2_norm_clip = FLAGS.l2_norm_clip,
                                 num_microbatches = FLAGS.num_microbatches,
                                 noise_multipliers = [clients[cid].ba.noise_multiplier for cid in range(FLAGS.N)])
-        '''
-        data_placeholder, labels_placeholder = model.init_placeholder()
-        #eval_op, vector_loss, scalar_loss = model.eval_model()
-        eval_op, loss = model.eval()
         
-        for cid in range(FLAGS.N):
-            train_op, eval_op, scalar_loss = model.train_and_eval()
-            #train_op = model.train_model()
-            clients[cid].set_ops( train_op, eval_op, scalar_loss, 
-                                data_placeholder, labels_placeholder )
-        '''
+        # build the model on the server side
         train_op_list, eval_op, loss, data_placeholder, labels_placeholder = model.get_model(FLAGS.N)
+        # clients download the model from server
         for cid in range(FLAGS.N):
             clients[cid].set_ops( train_op_list[cid], eval_op, loss, 
                                 data_placeholder, labels_placeholder  )
@@ -263,7 +257,7 @@ def main(unused_argv):
             for r in range(COMM_ROUND):
                 print_new_comm_round(r)
                 comm_start_time = time.time()
-                # precheck
+                # precheck and pick up the candidates who can take the next commiunication round.
                 candidates = [ cid for cid in range(FLAGS.N) if clients[cid].precheck() ]
                 # select the participating clients
                 participants = server.sample_clients(candidates)
