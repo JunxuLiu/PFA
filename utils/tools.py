@@ -46,7 +46,12 @@ def save_progress(FLAGS, model, Accuracy_accountant, Budgets_accountant=None):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    filename = "{}{}{}{}{}".format( FLAGS.N, '-{}'.format(FLAGS.client_batch_size), ('-fedavg' if FLAGS.fedavg else ''), ('-wavg' if FLAGS.weiavg else ''), ('-pro{}_{}'.format(FLAGS.proj_dims, FLAGS.lanczos_iter) if FLAGS.projection else ''))
+    filename = "{}{}{}{}{}{}".format( FLAGS.N, 
+                                    ('-fedavg' if FLAGS.fedavg else ''), 
+                                    ('-wavg' if FLAGS.weiavg else ''), 
+                                    ('-pro{}_{}'.format(FLAGS.proj_dims, FLAGS.lanczos_iter) if FLAGS.projection else ''),
+                                    '-bs{}'.format(FLAGS.client_batch_size), 
+                                    ('-decaylr' if FLAGS.lr_decay else '-constlr') )
 
     '''
     filehandler = open(filename + '.pkl', "wb")

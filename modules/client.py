@@ -33,6 +33,7 @@ class Client(object):
         self.loc_steps = loc_steps
         
         self.ba = None
+        self.global_steps = 0
 
     def set_ba(self, ba):
         '''set client's budget accountant'''
@@ -53,15 +54,19 @@ class Client(object):
         else:
             return self.ba.precheck(self.dataset_size, self.batch_size, self.loc_steps)
 
-    def local_update(self, sess, assignments, glob_model):
+    def download_model(self, sess, assignments, set_global_step, model):
+
+        sess.run(assignments, feed_dict=model)
+        sess.run(set_global_step, feed_dict={'global_step_placeholder:0':self.global_steps})
+        
+
+    def local_update(self, sess, model, global_steps):
 
         # local SGD then get the model updates
-        sess.run(assignments, feed_dict=glob_model)
         for it in range(self.loc_steps):
 
             # batch_ind holds the indices of the current batch
             batch_ind = np.random.permutation(self.dataset_size)[0:self.batch_size]
-
             x_batch = self.x_train[[int(j) for j in batch_ind]]
             y_batch = self.y_train[[int(j) for j in batch_ind]]
 
@@ -71,48 +76,14 @@ class Client(object):
                          str(self.labels_ph.name): y_batch}
 
             # Run one optimization step.
-            _ = sess.run(self.train_op, feed_dict=feed_dict)
+            _ = sess.run(self.train_op, feed_dict = feed_dict)
 
-        updates = [glob_model[Vname_to_FeedPname(var)] - sess.run(var) for var in tf.trainable_variables()]
+        self.global_steps = sess.run(global_steps)
+        
+        updates = [model[Vname_to_FeedPname(var)] - sess.run(var) for var in tf.trainable_variables()]
 
         # update the budget accountant
         accum_bgts = self.ba.update(self.loc_steps) if self.ba is not None else None
 
         return updates, accum_bgts
         
-
-class LocalUpdate(object):
-
-    def __init__(self, x_train, y_train, client_set, batch_size, data_placeholder, labels_placeholder):
-        self.x_train = x_train
-        self.y_train = y_train
-        self.client_set = client_set
-        self.batch_size = batch_size
-        self.data_placeholder = data_placeholder
-        self.labels_placeholder = labels_placeholder
-
-    def update(self, sess, assignments, cid, glob_model, iters, train_op):
-        sess.run(assignments, feed_dict=glob_model)
-        
-        for it in range(iters):
-            #print('it: {}'.format(it))
-            t1 = time.time()
-
-            loc_dataset = np.random.permutation(self.client_set[cid])
-            # batch_ind holds the indices of the current batch
-            batch_ind = loc_dataset[0:self.batch_size]
-
-            # Fill a feed dictionary with the actual set of data and labels using the data and labels associated
-            # to the indices stored in batch_ind:
-            feed_dict = {str(self.data_placeholder.name): self.x_train[[int(j) for j in batch_ind]],
-                         str(self.labels_placeholder.name): self.y_train[[int(j) for j in batch_ind]]}
-            #t2 = time.time()
-            # Run one optimization step.
-            _ = sess.run(train_op, feed_dict=feed_dict)
-            #t3 = time.time()
-            #print((t3-t1)/60, (t3-t2)/60)
-
-        updates = [glob_model[Vname_to_FeedPname(var)] - sess.run(var) for var in tf.trainable_variables()]
-
-        return updates
-

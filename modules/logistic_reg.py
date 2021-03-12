@@ -224,8 +224,10 @@ class LogisticRegression(Model):
 
         # - learning_rate : A tensorflow learning rate, dependent on the global_step variable.
         if self.lr_decay:
-            learning_rate = tf.train.exponential_decay(learning_rate=self.lr, global_step=global_step,
-                                                        decay_steps=27000, decay_rate=0.1,
+            learning_rate = tf.train.exponential_decay(learning_rate=self.lr,
+                                                        global_step=global_step,
+                                                        decay_steps=2500, 
+                                                        decay_rate=0.5,
                                                         staircase=True, name='learning_rate')
             print('decay lr: {}'.format(self.lr))
 
@@ -253,6 +255,6 @@ class LogisticRegression(Model):
             train_op = optimizer.minimize(loss=opt_loss, global_step=global_step)
             train_op_list = [train_op] * num_clients
 
-        return train_op_list, eval_op, scalar_loss, data_placeholder, labels_placeholder
+        return train_op_list, eval_op, scalar_loss, global_step, data_placeholder, labels_placeholder
 
 

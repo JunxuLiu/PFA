@@ -16,14 +16,19 @@ import tensorflow.compat.v1 as tf
 import numpy as np
 np.random.seed(10)
 
-def global_step_creator():
+
+def global_step_creator( ):
     global_step = [v for v in tf.global_variables() if v.name == "global_step:0"][0]
-    global_step_placeholder = tf.placeholder(dtype=tf.float32, shape=(), name='global_step_placeholder')
+    global_step_placeholder = tf.placeholder(dtype=tf.float32, 
+                                            shape=(), 
+                                            name='global_step_placeholder')
+    set_global_step = tf.assign(global_step, global_step_placeholder)
+    return set_global_step
+    '''
     one = tf.constant(1, dtype=tf.float32, name='one')
     new_global_step = tf.add(global_step, one)
     increase_global_step = tf.assign(global_step, new_global_step)
-    set_global_step = tf.assign(global_step, global_step_placeholder)
-    return increase_global_step, set_global_step
+    '''
 
 
 def Assignements(dic):

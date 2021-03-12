@@ -144,66 +144,7 @@ class CNN(Model):
 
         else:
             raise ValueError('No model matches the required dataset.')
-        
-    """
-    def train_model(self):
 
-        # - global_step : A Variable, which tracks the amount of steps taken by the clients:
-        global_step = tf.Variable(0, dtype=tf.float32, trainable=False, name='global_step')
-
-        # - learning_rate : A tensorflow learning rate, dependent on the global_step variable.
-        if self.lr_decay:
-            learning_rate = tf.train.exponential_decay(learning_rate=self.lr, 
-                                                        global_step=global_step,
-                                                        decay_steps=27000, decay_rate=0.1,
-                                                        staircase=True, name='learning_rate')
-            print('decay lr: start at {}'.format(self.lr))
-
-        else:
-            learning_rate = self.lr
-            print('constant lr: {}'.format(self.lr))
-
-        # Create the gradient descent optimizer with the given learning rate.
-        if self.dpsgd:
-            optimizer = dp_optimizer.DPGradientDescentGaussianOptimizer(
-                l2_norm_clip=self.l2_norm_clip,
-                noise_multiplier=self.noise_multiplier,
-                num_microbatches=self.num_microbatches,
-                learning_rate=learning_rate)
-
-            train_op = optimizer.minimize(loss=self.vector_loss, global_step=global_step)
-
-        else:
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
-
-            train_op = optimizer.minimize(loss=self.scalar_loss, global_step=global_step)
-            
-        return train_op
-
-
-    def eval_model(self):
-
-        # - logits : output of the [fully connected neural network] when fed with images.
-        logits = self.build_model(self.data_placeholder)
-
-        # - loss : when comparing logits to the true labels.
-        # Calculate loss as a vector (to support microbatches in DP-SGD).
-        vector_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=logits)
-
-        # Define mean of loss across minibatch (for reporting through tf.Estimator).
-        scalar_loss = tf.reduce_mean(input_tensor=vector_loss)
-
-        # - eval_correct : when run, returns the amount of labels that were predicted correctly.
-        eval_op = self.evaluation(logits, self.labels_placeholder)
-
-        # Add a scalar summary for the snapshot loss.
-        tf.summary.scalar('loss', scalar_loss)
-
-        self.vector_loss = vector_loss
-        self.scalar_loss = scalar_loss
-
-        return eval_op, vector_loss, scalar_loss
-    """
 
     def get_model(self, num_clients):
         # - placeholder for the input Data (in our case MNIST), depends on the batch size specified in C
@@ -214,14 +155,7 @@ class CNN(Model):
         # Define FCNN architecture
         # - logits : output of the [fully connected neural network] when fed with images.
         logits = self.build_model(data_placeholder)
-        '''
-        if FLAGS.model == 'lr' and (FLAGS.dataset == 'mnist' or FLAGS.dataset == 'fmnist'):
-            logits = lr_mnist(data_placeholder)
-        elif FLAGS.model == 'cnn' and (FLAGS.dataset == 'mnist' or FLAGS.dataset == 'fmnist'):
-            logits = cnn_mnist(data_placeholder)
-        else:
-            raise ValueError('No model matches the required model and dataset.')
-        '''
+
         # - loss : when comparing logits to the true labels.
         # Calculate loss as a vector (to support microbatches in DP-SGD).
         labels_placeholder = tf.cast(labels_placeholder, dtype=tf.int64)
@@ -241,9 +175,12 @@ class CNN(Model):
 
         # - learning_rate : A tensorflow learning rate, dependent on the global_step variable.
         if self.lr_decay:
-            learning_rate = tf.train.exponential_decay(learning_rate=self.lr, global_step=global_step,
-                                                        decay_steps=27000, decay_rate=0.1,
-                                                        staircase=True, name='learning_rate')
+            learning_rate = tf.train.exponential_decay(learning_rate=self.lr, 
+                                                        global_step=global_step,
+                                                        decay_steps=2500, 
+                                                        decay_rate=0.5,
+                                                        staircase=True, 
+                                                        name='learning_rate')
             print('decay lr: {}'.format(self.lr))
 
         else:
@@ -270,7 +207,7 @@ class CNN(Model):
             train_op = optimizer.minimize(loss=opt_loss, global_step=global_step)
             train_op_list = [train_op] * num_clients
 
-        return train_op_list, eval_op, scalar_loss, data_placeholder, labels_placeholder
+        return train_op_list, eval_op, scalar_loss, global_step, data_placeholder, labels_placeholder
 
 
 

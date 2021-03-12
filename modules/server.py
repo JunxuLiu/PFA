@@ -207,13 +207,13 @@ class Server(object):
 
         keys = [Vname_to_FeedPname(var) for var in tf.trainable_variables()]
         global_model = dict(zip(keys, [sess.run(var) for var in tf.trainable_variables()]))
-        global_model['global_step_placeholder:0'] = 0
-    
+        #global_model['global_step_placeholder:0'] = 0
+
         return global_model
 
 
-    def init_alg(self, fedavg=False, weiavg=False, projection=True,\
-                dp=True, proj_dims=None, lanczos_iter=None):
+    def init_alg(self, dp=True, fedavg=False, weiavg=False, \
+                projection=True, proj_dims=None, lanczos_iter=None):
     
         if fedavg or (not dp):
             self.__alg = FedAvg()

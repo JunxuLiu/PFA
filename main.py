@@ -46,7 +46,7 @@ flags.DEFINE_boolean('noniid', False, 'If True, train with noniid data.')
 flags.DEFINE_integer('noniid_level', 10, 'Level of noniid.')
 flags.DEFINE_integer('N', 10,
                    'Total number of clients.')
-flags.DEFINE_integer('global_steps', 10000,
+flags.DEFINE_integer('max_steps', 10000,
                    'Total number of communication round.')
 flags.DEFINE_integer('local_steps', 100,
                    'The round gap between two consecutive communications.')
@@ -114,11 +114,10 @@ def prepare_local_data(project_path, dataset, nclients, noniid, version):
         client_set = create_noniid_clients(nclients, len(x_train), 10, 
                                       client_dataset_size, FLAGS.noniid_level, client_set_path)
 
-    print(y_train)
     labels = [0]*10
     for i in y_train:
         labels[int(i)] += 1
-    print(labels)
+
     return x_train, y_train, x_test, y_test, client_set
 
 
@@ -142,7 +141,7 @@ def main(unused_argv):
     hp = HParams(loc_batch_size=FLAGS.client_batch_size, 
                 loc_num_microbatches=FLAGS.num_microbatches, 
                 loc_lr=FLAGS.lr,
-                glob_steps=FLAGS.global_steps,
+                glob_steps=FLAGS.max_steps,
                 loc_steps=FLAGS.local_steps,
                 loc_l2_norm=FLAGS.l2_norm_clip)
 
@@ -216,14 +215,15 @@ def main(unused_argv):
                                 noise_multipliers = [clients[cid].ba.noise_multiplier for cid in range(FLAGS.N)])
         
         # build the model on the server side
-        train_op_list, eval_op, loss, data_placeholder, labels_placeholder = model.get_model(FLAGS.N)
+        train_op_list, eval_op, loss, global_steps, data_placeholder, labels_placeholder = model.get_model(FLAGS.N)
         # clients download the model from server
         for cid in range(FLAGS.N):
             clients[cid].set_ops( train_op_list[cid], eval_op, loss, 
-                                data_placeholder, labels_placeholder  )
+                                data_placeholder, labels_placeholder )
 
         # increase and set global step
-        increase_global_step, set_global_step = global_step_creator()
+        real_global_steps = 0
+        set_global_step = global_step_creator()
 
         # dict, each key-value pair corresponds to the placeholder_name of each tf.trainable_variables
         # and its placeholder.
@@ -248,8 +248,12 @@ def main(unused_argv):
 
             # initial global model and errors
             model = server.init_global_model(sess)
-            alg = server.init_alg(FLAGS.fedavg, FLAGS.weiavg, FLAGS.projection, FLAGS.dpsgd,
-                                FLAGS.proj_dims, FLAGS.lanczos_iter)
+            alg = server.init_alg(FLAGS.dpsgd,
+                                FLAGS.fedavg, 
+                                FLAGS.weiavg, 
+                                FLAGS.projection, 
+                                FLAGS.proj_dims, 
+                                FLAGS.lanczos_iter)
 
             # initial local update
             #local = LocalUpdate(x_train, y_train, client_set, hp.bs, data_placeholder, labels_placeholder)
@@ -267,15 +271,23 @@ def main(unused_argv):
                     print("the condition of training cannot be satisfied. (no public clients or no sufficient candidates.")
                     print('Done! The procedure time:', time.time() - start_time)
                     break
-                print(participants)
+                
+                print('==== participants in round {} includes: ====\n {} '.format(r, participants))
                 max_accum_bgts = 0
                 ############################################################################################################
                 # For each client c (out of the m chosen ones):
                 for cid in participants:
                     #########################################################################################################
                     # Start local update
-                    # Setting the trainable Variables in the graph to the values stored in feed_dict 'model'
-                    update, accum_bgts = clients[cid].local_update(sess, assignments, model)
+                    
+                    # 1. Simulate that clients download the global model from server.
+                    # in here, we set the trainable Variables in the graph to the values stored in feed_dict 'model'
+                    clients[cid].download_model(sess, assignments, set_global_step, model)
+                    #print(model['dense_1/bias_placeholder:0'])
+                    #  sess.run(assignments + [set_global_step], feed_dict=model)
+                    # 2. clients update the model locally
+                    update, accum_bgts = clients[cid].local_update(sess, model, global_steps)
+                    
                     if accum_bgts is not None:
                         max_accum_bgts = max(max_accum_bgts, accum_bgts)
 
@@ -285,15 +297,15 @@ def main(unused_argv):
                         print('For client %d and delta=%f, the budget is %f and the left budget is: %f' %
                             (cid, delta, clients[cid].ba.epsilon, clients[cid].ba.accum_bgts))
 
-                    #print('local update procedure time:', time.time() - start_time)
+                    # print('local update procedure time:', time.time() - start_time)
                     # End of the local update
                     ############################################################################################################
 
                 # average and update the global model, apply_gradients(grads_and_vars, global_step)
                 model = server.update( model, eps_list=(priv_preferences[participants] if FLAGS.weiavg else None) )
-
+                #model['global_step_placeholder:0'] = real_global_steps
                 # Setting the trainable Variables in the graph to the values stored in feed_dict 'model'
-                sess.run(assignments + [increase_global_step], feed_dict=model)
+                
 
                 # validate the (current) global model using validation set.
                 # create a feed-dict holding the validation set.
@@ -315,7 +327,6 @@ def main(unused_argv):
                 print_loss_and_accuracy(global_loss, accuracy, stage='test')
                 print('time of one communication:', time.time() - comm_start_time)
               
-
     print('Done! The procedure time:', time.time() - start_time)
 
 if __name__ == '__main__':
