@@ -3,20 +3,6 @@
 vid=2
 noniid_level=10
 batch_size=4
-num_microbatches=4
-
-#distributions=('mixgauss1' 'mixgauss2' 'mixgauss4' 'mixgauss5' 'gauss1' 'pareto1' 'uniform1')
-#distributions=('mixgauss4' 'mixgauss5' 'gauss1' 'pareto1' 'uniform1')
-distributions=('mixgauss1' 'mixgauss2')
-
-#datasets=('mnist' 'fmnist')
-datasets=('mnist')
-
-#!/bin/bash
-
-vid=2
-noniid_level=10
-batch_size=4
 
 #distributions=('mixgauss1' 'mixgauss2' 'mixgauss4' 'mixgauss5' 'gauss1' 'pareto1' 'uniform1')
 #distributions=('mixgauss4' 'mixgauss5' 'gauss1' 'pareto1' 'uniform1')
