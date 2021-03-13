@@ -41,7 +41,7 @@ def save_progress(FLAGS, model, Accuracy_accountant, Budgets_accountant=None):
     :return: nothing
     '''
     print('------------------>',FLAGS.noniid_level)
-    save_dir = os.path.join(os.getcwd(), 'res_{}'.format(FLAGS.version), FLAGS.dataset, FLAGS.model, ('noniid{}'.format(FLAGS.noniid_level) if FLAGS.noniid else 'iid'), (FLAGS.eps if FLAGS.dpsgd else 'nodp'))
+    save_dir = os.path.join(os.getcwd(), 'res/res_{}'.format(FLAGS.version), FLAGS.dataset, FLAGS.model, ('noniid{}'.format(FLAGS.noniid_level) if FLAGS.noniid else 'iid'), (FLAGS.eps if FLAGS.dpsgd else 'nodp'))
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)

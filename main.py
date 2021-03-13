@@ -24,7 +24,7 @@ from modules.client import Client
 from modules.server import Server
 from modules.budgets_accountant import BudgetsAccountant
 
-from data_reader import load_dataset
+from utils.data_reader import load_dataset
 from utils.create_clients import create_iid_clients, create_noniid_clients
 from utils.tools import check_labels, save_progress, print_loss_and_accuracy, print_new_comm_round
 from utils.dpsgd import set_epsilons, compute_noise_multiplier
@@ -279,15 +279,14 @@ def main(unused_argv):
                 for cid in participants:
                     #########################################################################################################
                     # Start local update
-                    
                     # 1. Simulate that clients download the global model from server.
                     # in here, we set the trainable Variables in the graph to the values stored in feed_dict 'model'
                     clients[cid].download_model(sess, assignments, set_global_step, model)
                     #print(model['dense_1/bias_placeholder:0'])
-                    #  sess.run(assignments + [set_global_step], feed_dict=model)
+
                     # 2. clients update the model locally
                     update, accum_bgts = clients[cid].local_update(sess, model, global_steps)
-                    
+
                     if accum_bgts is not None:
                         max_accum_bgts = max(max_accum_bgts, accum_bgts)
 
@@ -305,7 +304,7 @@ def main(unused_argv):
                 model = server.update( model, eps_list=(priv_preferences[participants] if FLAGS.weiavg else None) )
                 #model['global_step_placeholder:0'] = real_global_steps
                 # Setting the trainable Variables in the graph to the values stored in feed_dict 'model'
-                
+                sess.run(assignments, feed_dict=model)
 
                 # validate the (current) global model using validation set.
                 # create a feed-dict holding the validation set.
