@@ -3,16 +3,16 @@ import csv
 #from utils import set_epsilons
 
 
-rfpath = 'log_1/mnist/cnn/iid/mixgauss1/proj_dims'
-wfpath = 'res_1/mnist/cnn/iid/mixgauss1/proj_dims'
+rfpath = 'log/log_2/mnist/cnn/iid/mixgauss1/'
+wfpath = 'res/res_final/mnist/cnn/iid/mixgauss1/'
 
 #wfilename = 'log_test/log_lr_iid_20_bs128_nm128_10000_100_R8_mediandp_pro5_256_constlr_0121_v6'
 #file4 = 'parser_res/log_lr_iid_20_bs128_nm128_10000_100_R8_mediandp_pro5_256_constlr_0121_v6'
 
-#settings = [10,20,30,40,50]
+settings = [10,20,30,40,50]
 #settings = [10,50,100]
 #settings = [(128,128),(128,16),(64,64),(64,16),(32,32),(32,16)]
-settings = [1,2,5,10]
+#settings = [1,2,5,10]
 
 for i in settings:
     if not os.path.exists(wfpath):

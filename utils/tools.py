@@ -40,8 +40,7 @@ def save_progress(FLAGS, model, Accuracy_accountant, Budgets_accountant=None):
     :param FLAGS: CLASS INSTANCE: The FLAGS passed to the learning procedure.
     :return: nothing
     '''
-    print('------------------>',FLAGS.noniid_level)
-    save_dir = os.path.join(os.getcwd(), 'res/res_{}'.format(FLAGS.version), FLAGS.dataset, FLAGS.model, ('noniid{}'.format(FLAGS.noniid_level) if FLAGS.noniid else 'iid'), (FLAGS.eps if FLAGS.dpsgd else 'nodp'))
+    save_dir = os.path.join(os.getcwd(), FLAGS.save_dir, 'res_{}'.format(FLAGS.version), FLAGS.dataset, FLAGS.model, ('noniid{}'.format(FLAGS.noniid_level) if FLAGS.noniid else 'iid'), (FLAGS.eps if FLAGS.dpsgd else 'nodp'))
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -50,8 +49,8 @@ def save_progress(FLAGS, model, Accuracy_accountant, Budgets_accountant=None):
                                     ('-fedavg' if FLAGS.fedavg else ''), 
                                     ('-wavg' if FLAGS.weiavg else ''), 
                                     ('-pro{}_{}'.format(FLAGS.proj_dims, FLAGS.lanczos_iter) if FLAGS.projection else ''),
-                                    '-bs{}'.format(FLAGS.client_batch_size), 
-                                    ('-decaylr' if FLAGS.lr_decay else '-constlr') )
+                                    '-{}-bs{}'.format(FLAGS.local_steps, FLAGS.client_batch_size), 
+                                    ('-decaylr{}'.format(FLAGS.lr) if FLAGS.lr_decay else '-constlr{}'.format(FLAGS.lr)) )
 
     '''
     filehandler = open(filename + '.pkl', "wb")

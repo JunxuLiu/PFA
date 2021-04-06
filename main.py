@@ -52,9 +52,9 @@ flags.DEFINE_integer('local_steps', 100,
                    'The round gap between two consecutive communications.')
 flags.DEFINE_integer('client_dataset_size', None,
                    'If None, set the default value.')
-flags.DEFINE_integer('client_batch_size', 128,
+flags.DEFINE_integer('client_batch_size', 4,
                    'Batch size used on the client.')
-flags.DEFINE_integer('num_microbatches', 64, 'Number of microbatches '
+flags.DEFINE_integer('num_microbatches', 4, 'Number of microbatches '
                            '(must evenly divide batch_size)')
 
 # learning rate
@@ -69,10 +69,10 @@ flags.DEFINE_float('delta', 1e-5, 'DP parameter Delta.')
 flags.DEFINE_float('l2_norm_clip', 1.0, 'Clipping norm')
 
 # Personalized privacy flags
-flags.DEFINE_enum('sample_mode', None, ['R','W1','W2'],
+flags.DEFINE_enum('sample_mode', 'R', ['R','W1','W2'],
                   'R for random sample, W for weighted sample and '
                   'None for full participation.')
-flags.DEFINE_float('sample_ratio', 0.1, 'Sample ratio.')
+flags.DEFINE_float('sample_ratio', 0.8, 'Sample ratio.')
 
 # minimum epsilon
 flags.DEFINE_boolean('min', False, 'If True, train eps_min dp.')
@@ -82,12 +82,12 @@ flags.DEFINE_boolean('weiavg', False, 'If True, train with weighted averaging.')
 flags.DEFINE_boolean('fedavg', False, 'If True, train with fedavg.')
 # Projection flags
 flags.DEFINE_boolean('projection', False, 'If True, use projection.')
-flags.DEFINE_integer('proj_dims', 5, 'The dimensions of subspace.')
-flags.DEFINE_integer('lanczos_iter', 128, 'Projection method.')
+flags.DEFINE_integer('proj_dims', 1, 'The dimensions of subspace.')
+flags.DEFINE_integer('lanczos_iter', 256, 'Projection method.')
 
 # save dir flags
-flags.DEFINE_integer('version', 1, 'version of dataset.')
-#flags.DEFINE_string('save_dir', 'res', 'Model directory')
+flags.DEFINE_integer('version', 2, 'version of dataset.')
+flags.DEFINE_string('save_dir', 'res', 'results directory')
 flags.DEFINE_string('log', os.path.join(os.getenv('TEST_TMPDIR', '/tmp'),
                   'tensorflow/mnist/logs'), 'Log data directory')
 FLAGS = flags.FLAGS
@@ -301,7 +301,8 @@ def main(unused_argv):
                     ############################################################################################################
 
                 # average and update the global model, apply_gradients(grads_and_vars, global_step)
-                model = server.update( model, eps_list=(priv_preferences[participants] if FLAGS.weiavg else None) )
+
+                model = server.update( model, eps_list=(np.array(priv_preferences)[participants] if FLAGS.weiavg else None) )
                 #model['global_step_placeholder:0'] = real_global_steps
                 # Setting the trainable Variables in the graph to the values stored in feed_dict 'model'
                 sess.run(assignments, feed_dict=model)
