@@ -177,7 +177,7 @@ class CNN(Model):
         if self.lr_decay:
             learning_rate = tf.train.exponential_decay(learning_rate=self.lr, 
                                                         global_step=global_step,
-                                                        decay_steps=2500, 
+                                                        decay_steps=5000, 
                                                         decay_rate=0.5,
                                                         staircase=True, 
                                                         name='learning_rate')

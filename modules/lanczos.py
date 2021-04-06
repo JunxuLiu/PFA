@@ -14,8 +14,6 @@ np.random.seed(10)
 
 def Lanczos( mat, m=128 ):
 
-    print('lanczos iteration:', m)
-
     # reference: https://en.wikipedia.org/wiki/Lanczos_algorithm
     n = mat[0].shape[0]
     v0 = np.random.rand(n)

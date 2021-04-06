@@ -85,10 +85,11 @@ class WeiAvg(ServerOperation):
         self.__updates = aggregate_fn(update, self.__updates)
 
     def average(self, num_vars=None, shape_vars=None, eps_subset=None):
-        print(eps_subset)
+        
         eps_sum = sum(eps_subset)
         weights = np.array([eps/eps_sum for eps in eps_subset])
-
+        print('weights: {}'.format(weights))
+        
         mean_updates = [np.average(self.__updates[i], 0, weights).reshape(shape_vars[i]) \
                         for i in range(num_vars)]
         self.__updates = []
@@ -97,7 +98,7 @@ class WeiAvg(ServerOperation):
 
 class Pfizer(ServerOperation):
 
-    def __init__(self, proj_dims, lanczos_iter):
+    def __init__(self, proj_dims, lanczos_iter, standardize=True):
 
         print('Using projected averaging (Pfizer) algorithm...')
         self.__num_pub = 0
@@ -107,6 +108,7 @@ class Pfizer(ServerOperation):
 
         self.proj_dims = proj_dims
         self.lanczos_iter = lanczos_iter
+        self.standardize = standardize
         
 
     def aggregate(self, update, is_public=False):
@@ -137,6 +139,9 @@ class Pfizer(ServerOperation):
 
     
     def __eigen_by_lanczos(self, mat):
+        #v0 /= np.sqrt(np.dot(v0,v0))
+        #mat = [col.reshape(-1,1) for col in mat]
+        #mat = [np.dot(col, col) for col in mat]
         T, V = Lanczos(mat, self.lanczos_iter)
         T_evals, T_evecs = np.linalg.eig(T)
         idx = T_evals.argsort()[-1 : -(self.proj_dims+1) : -1]
@@ -151,19 +156,20 @@ class Pfizer(ServerOperation):
             mean_pub_updates = [np.mean(self.__pub_updates[i], 0) for i in range(num_vars)]
             mean_proj_priv_updates = [0] * num_vars
             mean_updates = [0] * num_vars
-            
-            for i in range(num_vars):
-                #start_time = time.time()
-                #print(self.pub_updates[i].T)
-                pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
-                #print('pub_updates.shape:{}, mean.shape:{}'.format(pub_updates.shape, mean.shape))
-                Vk = self.__eigen_by_lanczos(pub_updates.T)
-                #print('Vk.shape:{}, (mean_priv_updates[{}] - mean).shape:{}'.format(Vk.shape, i, (mean_priv_updates[i] - mean).shape))
-                mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, (mean_priv_updates[i] - mean))) + mean
-                #print('mean_proj_priv_updates[i].shape:{}, mean_pub_updates[i].shape:{}'.format(mean_proj_priv_updates[i].shape, mean_pub_updates[i].shape))
-                #print('projection time:', time.time() - start_time)
-                mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
-                                  (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
+
+            if not self.standardize:
+                for i in range(num_vars):
+                    Vk = self.__eigen_by_lanczos(self.__pub_updates[i])
+                    mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, mean_priv_updates[i]))
+                    mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
+                                    (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
+            else:
+                for i in range(num_vars):
+                    pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
+                    Vk = self.__eigen_by_lanczos(pub_updates.T)
+                    mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, (mean_priv_updates[i] - mean))) + mean
+                    mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
+                                    (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
 
             return mean_updates
 
@@ -196,9 +202,14 @@ class Server(object):
         self.__public = None
 
     def set_public_clients(self, epsilons):
-        sorted_eps = np.sort(epsilons)    
-        percent = 0.1
-        threshold = sorted_eps[-int(percent * self.num_clients)]
+        sorted_eps = np.sort(epsilons)[::-1]  
+        #percent = 0.1
+        threshold = epsilons[0]
+        for i in range(1,len(sorted_eps)):
+            if sorted_eps[i-1] - sorted_eps[i] >= 3.0:
+                threshold = sorted_eps[i-1]
+                print('threshold: {}'.format(threshold))
+                break
 
         self.__public = list(np.where(np.array(epsilons) >= threshold)[0])
         
@@ -213,7 +224,7 @@ class Server(object):
 
 
     def init_alg(self, dp=True, fedavg=False, weiavg=False, \
-                projection=True, proj_dims=None, lanczos_iter=None):
+                projection=True, proj_dims=None, lanczos_iter=None, standardize=True):
     
         if fedavg or (not dp):
             self.__alg = FedAvg()
@@ -224,7 +235,7 @@ class Server(object):
 
         elif projection:
             assert( dp==False,  'Detected DP components were not applied so that the Pfizer algorithm was denied.')
-            self.__alg = Pfizer(proj_dims, lanczos_iter)
+            self.__alg = Pfizer(proj_dims, lanczos_iter, standardize)
 
         else:
             raise ValueError('Choose an algorithm (FedAvg/WeiAvg/Pfizer) to get the aggregated model.')
