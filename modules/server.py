@@ -85,10 +85,11 @@ class WeiAvg(ServerOperation):
         self.__updates = aggregate_fn(update, self.__updates)
 
     def average(self, num_vars=None, shape_vars=None, eps_subset=None):
-        print(eps_subset)
+        
         eps_sum = sum(eps_subset)
         weights = np.array([eps/eps_sum for eps in eps_subset])
-
+        print('weights: {}'.format(weights))
+        
         mean_updates = [np.average(self.__updates[i], 0, weights).reshape(shape_vars[i]) \
                         for i in range(num_vars)]
         self.__updates = []
@@ -137,6 +138,9 @@ class Pfizer(ServerOperation):
 
     
     def __eigen_by_lanczos(self, mat):
+        #v0 /= np.sqrt(np.dot(v0,v0))
+        #mat = [col.reshape(-1,1) for col in mat]
+        #mat = [np.dot(col, col) for col in mat]
         T, V = Lanczos(mat, self.lanczos_iter)
         T_evals, T_evecs = np.linalg.eig(T)
         idx = T_evals.argsort()[-1 : -(self.proj_dims+1) : -1]
@@ -153,15 +157,9 @@ class Pfizer(ServerOperation):
             mean_updates = [0] * num_vars
             
             for i in range(num_vars):
-                #start_time = time.time()
-                #print(self.pub_updates[i].T)
                 pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
-                #print('pub_updates.shape:{}, mean.shape:{}'.format(pub_updates.shape, mean.shape))
                 Vk = self.__eigen_by_lanczos(pub_updates.T)
-                #print('Vk.shape:{}, (mean_priv_updates[{}] - mean).shape:{}'.format(Vk.shape, i, (mean_priv_updates[i] - mean).shape))
                 mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, (mean_priv_updates[i] - mean))) + mean
-                #print('mean_proj_priv_updates[i].shape:{}, mean_pub_updates[i].shape:{}'.format(mean_proj_priv_updates[i].shape, mean_pub_updates[i].shape))
-                #print('projection time:', time.time() - start_time)
                 mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
                                   (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
 

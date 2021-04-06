@@ -62,14 +62,6 @@ class LogisticRegression(Model):
         self.num_microbatches = num_microbatches
         self.noise_multipliers = noise_multipliers
 
-
-    def loss(self, logits, labels):
-        labels = tf.cast(labels, dtype=tf.int64)
-        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                        labels=labels, logits=logits, name='xentropy')
-        return tf.reduce_mean(cross_entropy, name='xentropy_mean')
-            
-
     def evaluation(self, logits, labels):
         # For a classifier model, we can use the in_top_k Op.
         # It returns a bool tensor with shape [batch_size] that is true for
@@ -133,8 +125,8 @@ class LogisticRegression(Model):
         if self.lr_decay:
             learning_rate = tf.train.exponential_decay(learning_rate=self.lr, 
                                                         global_step=global_step,
-                                                        decay_steps=27000, 
-                                                        decay_rate=0.1,
+                                                        decay_steps=4000, 
+                                                        decay_rate=0.5,
                                                         staircase=True, 
                                                         name='learning_rate')
             print('decay lr: start at {}'.format(self.lr))
@@ -171,7 +163,7 @@ class LogisticRegression(Model):
 
         # - loss : when comparing logits to the true labels.
         # Calculate loss as a vector (to support microbatches in DP-SGD).
-        vector_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=logits)
+        vector_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels_placeholder, logits=(logits))
 
         # Define mean of loss across minibatch (for reporting through tf.Estimator).
         scalar_loss = tf.reduce_mean(input_tensor=vector_loss)
@@ -197,14 +189,7 @@ class LogisticRegression(Model):
         # Define FCNN architecture
         # - logits : output of the [fully connected neural network] when fed with images.
         logits = self.build_model(data_placeholder)
-        '''
-        if FLAGS.model == 'lr' and (FLAGS.dataset == 'mnist' or FLAGS.dataset == 'fmnist'):
-            logits = lr_mnist(data_placeholder)
-        elif FLAGS.model == 'cnn' and (FLAGS.dataset == 'mnist' or FLAGS.dataset == 'fmnist'):
-            logits = cnn_mnist(data_placeholder)
-        else:
-            raise ValueError('No model matches the required model and dataset.')
-        '''
+
         # - loss : when comparing logits to the true labels.
         # Calculate loss as a vector (to support microbatches in DP-SGD).
         labels_placeholder = tf.cast(labels_placeholder, dtype=tf.int64)
@@ -228,7 +213,8 @@ class LogisticRegression(Model):
                                                         global_step=global_step,
                                                         decay_steps=2500, 
                                                         decay_rate=0.5,
-                                                        staircase=True, name='learning_rate')
+                                                        staircase=True, 
+                                                        name='learning_rate')
             print('decay lr: {}'.format(self.lr))
 
         else:
