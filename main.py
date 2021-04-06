@@ -8,7 +8,6 @@ from __future__ import print_function
 from absl import app
 from absl import flags
 
-
 import os
 import pickle
 import math
@@ -52,9 +51,9 @@ flags.DEFINE_integer('local_steps', 100,
                    'The round gap between two consecutive communications.')
 flags.DEFINE_integer('client_dataset_size', None,
                    'If None, set the default value.')
-flags.DEFINE_integer('client_batch_size', 128,
+flags.DEFINE_integer('client_batch_size', 4,
                    'Batch size used on the client.')
-flags.DEFINE_integer('num_microbatches', 64, 'Number of microbatches '
+flags.DEFINE_integer('num_microbatches', 4, 'Number of microbatches '
                            '(must evenly divide batch_size)')
 
 # learning rate
@@ -82,12 +81,14 @@ flags.DEFINE_boolean('weiavg', False, 'If True, train with weighted averaging.')
 flags.DEFINE_boolean('fedavg', False, 'If True, train with fedavg.')
 # Projection flags
 flags.DEFINE_boolean('projection', False, 'If True, use projection.')
-flags.DEFINE_integer('proj_dims', 5, 'The dimensions of subspace.')
-flags.DEFINE_integer('lanczos_iter', 128, 'Projection method.')
+flags.DEFINE_boolean('standardize', True, 'If True, standardize.')
+flags.DEFINE_integer('proj_dims', 1, 'The dimensions of subspace.')
+flags.DEFINE_integer('lanczos_iter', 256, 'Projection method.')
+
 
 # save dir flags
 flags.DEFINE_integer('version', 1, 'version of dataset.')
-#flags.DEFINE_string('save_dir', 'res', 'Model directory')
+flags.DEFINE_string('save_dir', 'res', 'Model directory')
 flags.DEFINE_string('log', os.path.join(os.getenv('TEST_TMPDIR', '/tmp'),
                   'tensorflow/mnist/logs'), 'Log data directory')
 FLAGS = flags.FLAGS
@@ -253,7 +254,8 @@ def main(unused_argv):
                                 FLAGS.weiavg, 
                                 FLAGS.projection, 
                                 FLAGS.proj_dims, 
-                                FLAGS.lanczos_iter)
+                                FLAGS.lanczos_iter,
+                                FLAGS.standardize)
 
             # initial local update
             #local = LocalUpdate(x_train, y_train, client_set, hp.bs, data_placeholder, labels_placeholder)
