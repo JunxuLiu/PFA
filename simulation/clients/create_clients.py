@@ -166,5 +166,14 @@ def create_noniid_clients(num_clients, num_examples, num_classes, \
     #filehandler.close()
     #print('client created at: '+ dir + '/' + str(num_clients) + '_clients.pkl')
 
-if __name__ == '__main__':
-    client_set = create_noniid_clients(num_clients=10, num_examples=60000, num_classes=10, num_examples_per_client=6000, num_classes_per_client=8, path='.')
+def check_labels(N, client_set, y_train):
+    labels_set = []
+    for cid in range(N):
+        idx = [int(val) for val in client_set[cid]]
+        labels_set.append(set(np.array(y_train)[idx]))
+
+        labels_count = [0]*10
+        for label in np.array(y_train)[idx]:
+            labels_count[int(label)] += 1
+        print('cid: {}, number of labels: {}/10.'.format(cid, len(labels_set[cid])))
+        print(labels_count)

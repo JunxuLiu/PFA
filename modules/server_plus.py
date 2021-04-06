@@ -85,11 +85,10 @@ class WeiAvg(ServerOperation):
         self.__updates = aggregate_fn(update, self.__updates)
 
     def average(self, num_vars=None, shape_vars=None, eps_subset=None):
-        
+        print(eps_subset)
         eps_sum = sum(eps_subset)
         weights = np.array([eps/eps_sum for eps in eps_subset])
-        print('weights: {}'.format(weights))
-        
+
         mean_updates = [np.average(self.__updates[i], 0, weights).reshape(shape_vars[i]) \
                         for i in range(num_vars)]
         self.__updates = []
@@ -98,7 +97,7 @@ class WeiAvg(ServerOperation):
 
 class Pfizer(ServerOperation):
 
-    def __init__(self, proj_dims, lanczos_iter, standardize=True):
+    def __init__(self, proj_dims, lanczos_iter):
 
         print('Using projected averaging (Pfizer) algorithm...')
         self.__num_pub = 0
@@ -108,8 +107,11 @@ class Pfizer(ServerOperation):
 
         self.proj_dims = proj_dims
         self.lanczos_iter = lanczos_iter
-        self.standardize = standardize
+        self.Vk = None
+        self.mean = None
         
+    def get_proj_info(self):
+        return self.Vk, self.mean
 
     def aggregate(self, update, is_public=False):
         num_vars = len(update)
@@ -134,21 +136,28 @@ class Pfizer(ServerOperation):
             return M, np.zeros(n)
         # calculate the mean 
         mean = np.dot(M,np.ones((m,1), dtype=np.float32)) / m
-        #mean = [np.mean(M[i]) / m for i in range(n)]
         return M - mean, mean.flatten()
 
-    
+
     def __eigen_by_lanczos(self, mat):
-        #v0 /= np.sqrt(np.dot(v0,v0))
-        #mat = [col.reshape(-1,1) for col in mat]
-        #mat = [np.dot(col, col) for col in mat]
         T, V = Lanczos(mat, self.lanczos_iter)
         T_evals, T_evecs = np.linalg.eig(T)
         idx = T_evals.argsort()[-1 : -(self.proj_dims+1) : -1]
         Vk = np.dot(V.T, T_evecs[:,idx])
         return Vk
 
+    def __approx_subspace(self, num_vars):
 
+        Vks = []
+        means = []
+        for i in range(num_vars):
+            pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
+            Vks.append( self.__eigen_by_lanczos(pub_updates.T) )
+            means.append( mean )
+
+        return Vks, means
+
+    """
     def __project_priv_updates(self, num_vars, shape_vars):
 
         if len(self.__priv_updates):
@@ -156,20 +165,21 @@ class Pfizer(ServerOperation):
             mean_pub_updates = [np.mean(self.__pub_updates[i], 0) for i in range(num_vars)]
             mean_proj_priv_updates = [0] * num_vars
             mean_updates = [0] * num_vars
-
-            if not self.standardize:
-                for i in range(num_vars):
-                    Vk = self.__eigen_by_lanczos(self.__pub_updates[i])
-                    mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, mean_priv_updates[i]))
-                    mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
-                                    (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
-            else:
-                for i in range(num_vars):
-                    pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
-                    Vk = self.__eigen_by_lanczos(pub_updates.T)
-                    mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, (mean_priv_updates[i] - mean))) + mean
-                    mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
-                                    (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
+            '''
+            for i in range(num_vars):
+                #pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
+                Vk = self.__eigen_by_lanczos(self.__pub_updates[i])
+                mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, mean_priv_updates[i]))
+                mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
+                                  (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
+            '''
+            for i in range(num_vars):
+                pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
+                Vk = self.__eigen_by_lanczos(pub_updates.T)
+                mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, (mean_priv_updates[i] - mean))) + mean
+                mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
+                                  (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
+            
 
             return mean_updates
 
@@ -180,8 +190,62 @@ class Pfizer(ServerOperation):
 
         else:
             raise ValueError('Cannot process the projection without private local updates.')
+    """
+    def __project_priv_updates(self, num_vars, shape_vars, warmup=False):
+
+        if len(self.__priv_updates):
+            mean_pub_updates = [np.mean(self.__pub_updates[i], 0) for i in range(num_vars)]
+            mean_priv_updates = [np.mean(self.__priv_updates[i], 0) for i in range(num_vars)]
+            mean_proj_priv_updates = [0] * num_vars
+            mean_updates = [0] * num_vars
+
+            Vks = []
+            means = []
+
+            if warmup:
+                for i in range(num_vars):
+
+                    pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
+                    Vk = self.__eigen_by_lanczos(pub_updates.T)
+                    Vks.append(Vk)
+                    means.append(mean)
+                    print('mean.shape: {}'.format(mean.shape))
+                    print('Vk.shape: {}'.format(Vk.shape))
+                    print('mean_priv_updates[i].shape: {}'.format(mean_priv_updates[i].shape))
+
+                    mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, (mean_priv_updates[i] - mean))) + mean
+                    mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
+                                    (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
+                    
+
+            else:
+                for i in range(num_vars):
+                    print('self.mean[i].shape: {}'.format(self.mean[i].shape))
+                    print('self.Vk[i].shape: {}'.format(self.Vk[i].shape))
+                    print('mean_priv_updates[i].shape: {}'.format(mean_priv_updates[i].shape))
+                    mean_proj_priv_updates[i] = np.dot(self.Vk[i], mean_priv_updates[i]) + self.mean[i]
+                    mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
+                                        (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
+
+                    pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
+                    Vk = self.__eigen_by_lanczos(pub_updates.T)
+                    Vks.append(Vk)
+                    means.append(mean)
+            
+            self.Vk = Vks
+            self.mean = means
+            return mean_updates
 
 
+        elif len(self.__pub_updates) and not len(self.__priv_updates):
+
+            mean_updates = [np.mean(self.__pub_updates[i], 0).reshape(shape_vars[i]) for i in range(num_vars)]
+            return mean_updates
+
+        else:
+            raise ValueError('Cannot process the projection without private local updates.')
+
+    '''
     def average(self, num_vars, shape_vars, eps_list=None):
         mean_updates = self.__project_priv_updates(num_vars, shape_vars)
         self.__num_pub = 0
@@ -189,7 +253,16 @@ class Pfizer(ServerOperation):
         self.__priv_updates = []
         self.__pub_updates = []
         return mean_updates
+    '''
 
+    def average(self, num_vars, shape_vars, eps_list=None):
+        
+        mean_updates = self.__project_priv_updates(num_vars, shape_vars, warmup=(self.Vk is None))
+        self.__num_pub = 0
+        self.__num_priv = 0
+        self.__priv_updates = []
+        self.__pub_updates = []
+        return mean_updates
 
 class Server(object):
 
@@ -198,33 +271,27 @@ class Server(object):
         self.num_clients = num_clients
         self.sample_mode = sample_mode
         self.sample_ratio = sample_ratio
-
-        self.__public = None
+        
+        self.public = None
 
     def set_public_clients(self, epsilons):
-        sorted_eps = np.sort(epsilons)[::-1]  
-        #percent = 0.1
-        threshold = epsilons[0]
-        for i in range(1,len(sorted_eps)):
-            if sorted_eps[i-1] - sorted_eps[i] >= 3.0:
-                threshold = sorted_eps[i-1]
-                print('threshold: {}'.format(threshold))
-                break
+        sorted_eps = np.sort(epsilons)    
+        percent = 0.1
+        threshold = sorted_eps[-int(percent * self.num_clients)]
 
-        self.__public = list(np.where(np.array(epsilons) >= threshold)[0])
+        self.public = list(np.where(np.array(epsilons) >= threshold)[0])
         
 
     def init_global_model(self, sess):
 
         keys = [Vname_to_FeedPname(var) for var in tf.trainable_variables()]
         global_model = dict(zip(keys, [sess.run(var) for var in tf.trainable_variables()]))
-        #global_model['global_step_placeholder:0'] = 0
-
+        
         return global_model
 
 
     def init_alg(self, dp=True, fedavg=False, weiavg=False, \
-                projection=True, proj_dims=None, lanczos_iter=None, standardize=True):
+                projection=True, proj_dims=None, lanczos_iter=None):
     
         if fedavg or (not dp):
             self.__alg = FedAvg()
@@ -235,22 +302,24 @@ class Server(object):
 
         elif projection:
             assert( dp==False,  'Detected DP components were not applied so that the Pfizer algorithm was denied.')
-            self.__alg = Pfizer(proj_dims, lanczos_iter, standardize)
+            self.__alg = Pfizer(proj_dims, lanczos_iter)
 
         else:
             raise ValueError('Choose an algorithm (FedAvg/WeiAvg/Pfizer) to get the aggregated model.')
 
+    def get_proj_info(self):
+        return self.__alg.Vk, self.__alg.mean
+
     def aggregate(self, cid, update):
 
-        if self.__public:
-            self.__alg.aggregate(update, is_public=True if (cid in self.__public) else False)
+        if self.public:
+            self.__alg.aggregate(update, is_public=True if (cid in self.public) else False)
         else:
             self.__alg.aggregate(update)
 
     def update(self, global_model, eps_list=None):
 
         return self.__alg.update(global_model, eps_list)
-
 
     def __a_res(items, weights, m):
         """
@@ -311,12 +380,12 @@ class Server(object):
 
             # Only when we are running Pfizer method, `ba._public` is not None.
             # For FedAvg or WAVG or MIN/MAX, public clients are not necessary while sampling.
-            if self.__public is None:
+            if self.public is None:
                 return participants
                 
             # For Pfizer, we require the subset contains at least 1 public and 1 private client.
             check = 50
-            while check and len(set(participants).intersection(set(self.__public))) == 0:
+            while check and len(set(participants).intersection(set(self.public))) == 0:
                 check -= 1
                 print('There are no public clients be sampled in this round.')
                 participants = list(np.random.permutation(candidates))[0:m]

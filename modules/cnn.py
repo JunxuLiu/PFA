@@ -159,7 +159,7 @@ class CNN(Model):
         # - loss : when comparing logits to the true labels.
         # Calculate loss as a vector (to support microbatches in DP-SGD).
         labels_placeholder = tf.cast(labels_placeholder, dtype=tf.int64)
-        vector_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels_placeholder, logits=logits)
+        vector_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels_placeholder, logits=(logits))
 
         # Define mean of loss across minibatch (for reporting through tf.Estimator).
         scalar_loss = tf.reduce_mean(input_tensor=vector_loss)

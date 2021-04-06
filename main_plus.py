@@ -8,6 +8,7 @@ from __future__ import print_function
 from absl import app
 from absl import flags
 
+
 import os
 import pickle
 import math
@@ -23,10 +24,9 @@ from modules.client import Client
 from modules.server import Server
 from modules.budgets_accountant import BudgetsAccountant
 
-from simulation.datasets import data_reader
-from simulation.clients import create_clients
-
-from common_utils import tools
+from utils.data_reader import load_dataset
+from utils.create_clients import create_iid_clients, create_noniid_clients
+from utils.tools import check_labels, save_progress, print_loss_and_accuracy, print_new_comm_round
 from utils.dpsgd import set_epsilons, compute_noise_multiplier
 from utils.tf_frame import global_step_creator, Vname_to_FeedPname, Vname_to_Pname
 from utils.hparams import HParams
@@ -69,7 +69,7 @@ flags.DEFINE_float('delta', 1e-5, 'DP parameter Delta.')
 flags.DEFINE_float('l2_norm_clip', 1.0, 'Clipping norm')
 
 # Personalized privacy flags
-flags.DEFINE_enum('sample_mode', 'R', ['R','W1','W2'],
+flags.DEFINE_enum('sample_mode', None, ['R','W1','W2'],
                   'R for random sample, W for weighted sample and '
                   'None for full participation.')
 flags.DEFINE_float('sample_ratio', 0.8, 'Sample ratio.')
@@ -82,9 +82,9 @@ flags.DEFINE_boolean('weiavg', False, 'If True, train with weighted averaging.')
 flags.DEFINE_boolean('fedavg', False, 'If True, train with fedavg.')
 # Projection flags
 flags.DEFINE_boolean('projection', False, 'If True, use projection.')
-flags.DEFINE_boolean('standardize', True, 'If True, standardize.')
 flags.DEFINE_integer('proj_dims', 1, 'The dimensions of subspace.')
 flags.DEFINE_integer('lanczos_iter', 256, 'Projection method.')
+
 # save dir flags
 flags.DEFINE_integer('version', 1, 'version of dataset.')
 flags.DEFINE_string('save_dir', 'res', 'Model directory')
@@ -108,10 +108,10 @@ def prepare_local_data(project_path, dataset, nclients, noniid, version):
     client_dataset_size = len(x_train) // nclients if FLAGS.client_dataset_size is None \
                           else FLAGS.client_dataset_size
     if not noniid:
-        client_set = create_clients.create_iid_clients(nclients, len(x_train), 10,
+        client_set = create_iid_clients(nclients, len(x_train), 10,
                                       client_dataset_size, client_set_path)
     else:
-        client_set = create_clients.create_noniid_clients(nclients, len(x_train), 10, 
+        client_set = create_noniid_clients(nclients, len(x_train), 10, 
                                       client_dataset_size, FLAGS.noniid_level, client_set_path)
 
     labels = [0]*10
@@ -248,13 +248,13 @@ def main(unused_argv):
 
             # initial global model and errors
             model = server.init_global_model(sess)
-            alg = server.init_alg(FLAGS.dpsgd,
-                                FLAGS.fedavg, 
-                                FLAGS.weiavg, 
-                                FLAGS.projection, 
-                                FLAGS.proj_dims, 
-                                FLAGS.lanczos_iter,
-                                FLAGS.standardize)
+            server.init_alg(FLAGS.dpsgd,
+                            FLAGS.fedavg, 
+                            FLAGS.weiavg, 
+                            FLAGS.projection, 
+                            FLAGS.proj_dims, 
+                            FLAGS.lanczos_iter)
+            Vk, mean = None, None
 
             # initial local update
             #local = LocalUpdate(x_train, y_train, client_set, hp.bs, data_placeholder, labels_placeholder)
@@ -283,7 +283,8 @@ def main(unused_argv):
                     # 1. Simulate that clients download the global model from server.
                     # in here, we set the trainable Variables in the graph to the values stored in feed_dict 'model'
                     clients[cid].download_model(sess, assignments, set_global_step, model)
-                    #print(model['dense_1/bias_placeholder:0'])
+                    if FLAGS.projection:
+                        clients[cid].set_projection(Vk, mean, project=(cid not in server.public))
 
                     # 2. clients update the model locally
                     update, accum_bgts = clients[cid].local_update(sess, model, global_steps)
@@ -302,9 +303,10 @@ def main(unused_argv):
                     ############################################################################################################
 
                 # average and update the global model, apply_gradients(grads_and_vars, global_step)
+                model = server.update( model, eps_list=(priv_preferences[participants] if FLAGS.weiavg else None) )
+                if FLAGS.projection:
+                    Vk, mean = server.get_proj_info()
 
-                model = server.update( model, eps_list=(np.array(priv_preferences)[participants] if FLAGS.weiavg else None) )
-                #model['global_step_placeholder:0'] = real_global_steps
                 # Setting the trainable Variables in the graph to the values stored in feed_dict 'model'
                 sess.run(assignments, feed_dict=model)
 
@@ -321,9 +323,9 @@ def main(unused_argv):
 
                 if FLAGS.dpsgd:
                     privacy_accountant.append(max_accum_bgts)
-                    main_utils.save_progress(FLAGS, model, accuracy_accountant, privacy_accountant)
+                    save_progress(FLAGS, model, accuracy_accountant, privacy_accountant)
                 else:
-                    main_utils.save_progress(FLAGS, model, accuracy_accountant)
+                    save_progress(FLAGS, model, accuracy_accountant)
 
                 print_loss_and_accuracy(global_loss, accuracy, stage='test')
                 print('time of one communication:', time.time() - comm_start_time)

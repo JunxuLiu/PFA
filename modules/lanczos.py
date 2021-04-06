@@ -9,7 +9,6 @@ import math
 import tensorflow.compat.v1 as tf
 import numpy as np
 
-from utils import *
 np.random.seed(10)
 
 def Lanczos( mat, m=128 ):
@@ -24,7 +23,6 @@ def Lanczos( mat, m=128 ):
     V[0, :] = v0
     
     # step 2.1 - 2.3
-    #print(mat)
     w = np.sum([np.dot(col, np.dot(col.T, V[0,:])) for col in mat], 0)
     alfa = np.dot(w, V[0,:])
     w = w - alfa * V[0,:]
