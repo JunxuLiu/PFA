@@ -17,9 +17,10 @@ import numpy as np
 import scipy
 import time
 
-from utils import *
 from modules.budgets_accountant import BudgetsAccountant
-from utils.tf_frame import Vname_to_FeedPname, Vname_to_Pname
+
+from common_utils import main_utils
+from common_utils.tf_utils import Vname_to_FeedPname, Vname_to_Pname
 np.random.seed(10)
 
 
@@ -33,6 +34,8 @@ class Client(object):
         self.loc_steps = loc_steps
         
         self.ba = None
+        self.Vk = None
+        self.mean = None
         self.global_steps = 0
 
     def set_ba(self, ba):
@@ -59,6 +62,11 @@ class Client(object):
         sess.run(assignments, feed_dict=model)
         sess.run(set_global_step, feed_dict={'global_step_placeholder:0':self.global_steps})
         
+    def set_projection(self, Vk=None, mean=None, is_private=False):
+
+        self.Vk = Vk
+        self.mean = mean
+        self.is_private = is_private
 
     def local_update(self, sess, model, global_steps):
 
@@ -82,8 +90,12 @@ class Client(object):
         
         updates = [model[Vname_to_FeedPname(var)] - sess.run(var) for var in tf.trainable_variables()]
 
+        if (self.Vk is not None) and self.is_private:
+            update_1d = [u.flatten() for u in updates]
+            updates = [ np.dot(self.Vk[i].T, update_1d[i]-self.mean[i]) for i in range(len(update_1d)) ]
+        print('update[0].shape: {}'.format(updates[0].shape))
+
         # update the budget accountant
         accum_bgts = self.ba.update(self.loc_steps) if self.ba is not None else None
 
         return updates, accum_bgts
-        

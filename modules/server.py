@@ -15,7 +15,7 @@ import scipy
 import time
 
 from modules.lanczos import Lanczos
-from utils.tf_frame import Vname_to_FeedPname
+from common_utils.tf_utils import Vname_to_FeedPname
 np.random.seed(10)
 
 class ServerOperation(metaclass=abc.ABCMeta):
@@ -96,19 +96,24 @@ class WeiAvg(ServerOperation):
         return mean_updates
 
 
-class Pfizer(ServerOperation):
+class PFA(ServerOperation):
 
-    def __init__(self, proj_dims, lanczos_iter):
+    def __init__(self, proj_dims, lanczos_iter, delay):
 
         print('Using projected averaging (Pfizer) algorithm...')
         self.__num_pub = 0
         self.__num_priv = 0
         self.__priv_updates = []
         self.__pub_updates = []
-
+        
         self.proj_dims = proj_dims
         self.lanczos_iter = lanczos_iter
+        self.delay = delay
+        self.Vk = None
+        self.mean = None
         
+    def get_proj_info(self):
+        return self.Vk, self.mean
 
     def aggregate(self, update, is_public=False):
         num_vars = len(update)
@@ -133,22 +138,17 @@ class Pfizer(ServerOperation):
             return M, np.zeros(n)
         # calculate the mean 
         mean = np.dot(M,np.ones((m,1), dtype=np.float32)) / m
-        #mean = [np.mean(M[i]) / m for i in range(n)]
         return M - mean, mean.flatten()
 
-    
+
     def __eigen_by_lanczos(self, mat):
-        #v0 /= np.sqrt(np.dot(v0,v0))
-        #mat = [col.reshape(-1,1) for col in mat]
-        #mat = [np.dot(col, col) for col in mat]
         T, V = Lanczos(mat, self.lanczos_iter)
         T_evals, T_evecs = np.linalg.eig(T)
         idx = T_evals.argsort()[-1 : -(self.proj_dims+1) : -1]
         Vk = np.dot(V.T, T_evecs[:,idx])
         return Vk
 
-
-    def __project_priv_updates(self, num_vars, shape_vars):
+    def __projection(self, num_vars, shape_vars):
 
         if len(self.__priv_updates):
             mean_priv_updates = [np.mean(self.__priv_updates[i], 0) for i in range(num_vars)]
@@ -174,8 +174,61 @@ class Pfizer(ServerOperation):
             raise ValueError('Cannot process the projection without private local updates.')
 
 
+    def __delayed_projection(self, num_vars, shape_vars, warmup=False):
+
+        if len(self.__priv_updates):
+            mean_pub_updates = [np.mean(self.__pub_updates[i], 0) for i in range(num_vars)]
+            mean_priv_updates = [np.mean(self.__priv_updates[i], 0) for i in range(num_vars)]
+            mean_proj_priv_updates = [0] * num_vars
+            mean_updates = [0] * num_vars
+
+            Vks = []
+            means = []
+            if warmup:
+                for i in range(num_vars):
+
+                    pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
+                    Vk = self.__eigen_by_lanczos(pub_updates.T)
+                    Vks.append(Vk)
+                    means.append(mean)
+                    
+                    mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, (mean_priv_updates[i] - mean))) + mean
+                    mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
+                                    (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
+                    
+
+            else:
+                for i in range(num_vars):
+
+                    mean_proj_priv_updates[i] = np.dot(self.Vk[i], mean_priv_updates[i]) + self.mean[i]
+                    mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
+                                        (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
+
+                    pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
+                    Vk = self.__eigen_by_lanczos(pub_updates.T)
+                    Vks.append(Vk)
+                    means.append(mean)
+            
+            self.Vk = Vks
+            self.mean = means
+            return mean_updates
+
+
+        elif len(self.__pub_updates) and not len(self.__priv_updates):
+
+            mean_updates = [np.mean(self.__pub_updates[i], 0).reshape(shape_vars[i]) for i in range(num_vars)]
+            return mean_updates
+
+        else:
+            raise ValueError('Cannot process the projection without private local updates.')
+
+
     def average(self, num_vars, shape_vars, eps_list=None):
-        mean_updates = self.__project_priv_updates(num_vars, shape_vars)
+        if self.delay:
+            mean_updates = self.__delayed_projection(num_vars, shape_vars, warmup=(self.Vk is None))
+        else:
+            mean_updates = self.__projection(num_vars, shape_vars)
+
         self.__num_pub = 0
         self.__num_priv = 0
         self.__priv_updates = []
@@ -191,27 +244,26 @@ class Server(object):
         self.sample_mode = sample_mode
         self.sample_ratio = sample_ratio
 
-        self.__public = None
+        self.public = None
 
     def set_public_clients(self, epsilons):
         sorted_eps = np.sort(epsilons)    
         percent = 0.1
         threshold = sorted_eps[-int(percent * self.num_clients)]
 
-        self.__public = list(np.where(np.array(epsilons) >= threshold)[0])
+        self.public = list(np.where(np.array(epsilons) >= threshold)[0])
         
 
     def init_global_model(self, sess):
 
         keys = [Vname_to_FeedPname(var) for var in tf.trainable_variables()]
         global_model = dict(zip(keys, [sess.run(var) for var in tf.trainable_variables()]))
-        #global_model['global_step_placeholder:0'] = 0
 
         return global_model
 
 
     def init_alg(self, dp=True, fedavg=False, weiavg=False, \
-                projection=True, proj_dims=None, lanczos_iter=None):
+                projection=True, delay=False, proj_dims=None, lanczos_iter=None):
     
         if fedavg or (not dp):
             self.__alg = FedAvg()
@@ -222,22 +274,24 @@ class Server(object):
 
         elif projection:
             assert( dp==False,  'Detected DP components were not applied so that the Pfizer algorithm was denied.')
-            self.__alg = Pfizer(proj_dims, lanczos_iter)
+            self.__alg = PFA(proj_dims, lanczos_iter, delay)
 
         else:
             raise ValueError('Choose an algorithm (FedAvg/WeiAvg/Pfizer) to get the aggregated model.')
 
+    def get_proj_info(self):
+        return self.__alg.Vk, self.__alg.mean
+
     def aggregate(self, cid, update):
 
-        if self.__public:
-            self.__alg.aggregate(update, is_public=True if (cid in self.__public) else False)
+        if self.public:
+            self.__alg.aggregate(update, is_public=True if (cid in self.public) else False)
         else:
             self.__alg.aggregate(update)
 
     def update(self, global_model, eps_list=None):
 
         return self.__alg.update(global_model, eps_list)
-
 
     def __a_res(items, weights, m):
         """
@@ -298,12 +352,12 @@ class Server(object):
 
             # Only when we are running Pfizer method, `ba._public` is not None.
             # For FedAvg or WAVG or MIN/MAX, public clients are not necessary while sampling.
-            if self.__public is None:
+            if self.public is None:
                 return participants
                 
             # For Pfizer, we require the subset contains at least 1 public and 1 private client.
             check = 50
-            while check and len(set(participants).intersection(set(self.__public))) == 0:
+            while check and len(set(participants).intersection(set(self.public))) == 0:
                 check -= 1
                 print('There are no public clients be sampled in this round.')
                 participants = list(np.random.permutation(candidates))[0:m]

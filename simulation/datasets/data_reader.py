@@ -84,3 +84,4 @@ def load_dataset(path, dataset):
     y_test = y_test.astype(float)
 
     return np.array(sorted_x_train), np.array(sorted_y_train), np.array(x_test), np.array(y_test)
+
