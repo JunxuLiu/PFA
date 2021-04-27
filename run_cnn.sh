@@ -12,6 +12,8 @@ save_dir='res_'${dataset_size}
 #distributions=('mixgauss2' 'mixgauss3')
 distributions=('min2' 'min3')
 
+python main.py --max_steps 10000 --dataset mnist --model cnn --lr 0.01 --N 20 --client_dataset_size 1200 --num_microbatches 4 --client_batch_size 4 --sample_mode R --sample_ratio 0.8 --local_steps 100 --dpsgd True --eps mixgauss2 --projection True --proj_dims 2 --lanczos_iter 256 --version 2 --save_dir res_1200
+
 datasets=('mnist')
 i=30
 ########## cnn wavg/fedavg ###########
