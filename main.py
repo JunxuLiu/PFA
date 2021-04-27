@@ -80,11 +80,7 @@ flags.DEFINE_boolean('weiavg', False, 'If True, train with weighted averaging.')
 flags.DEFINE_boolean('fedavg', False, 'If True, train with fedavg.')
 # Projection flags
 flags.DEFINE_boolean('projection', False, 'If True, use projection.')
-<<<<<<< HEAD
 flags.DEFINE_boolean('proj_wavg', False, 'If True, use the weighted projection.')
-=======
-flags.DEFINE_boolean('delayed', False, 'If True, use projection.')
->>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
 flags.DEFINE_integer('proj_dims', 1, 'The dimensions of subspace.')
 flags.DEFINE_integer('lanczos_iter', 256, 'Projection method.')
 # save dir flags
@@ -242,7 +238,6 @@ def main(unused_argv):
 
             # initial global model and errors
             model = server.init_global_model(sess)
-<<<<<<< HEAD
             alg = server.init_alg(FLAGS.dpsgd,
                                 FLAGS.fedavg, 
                                 FLAGS.weiavg, 
@@ -250,16 +245,6 @@ def main(unused_argv):
                                 FLAGS.proj_wavg,
                                 FLAGS.proj_dims, 
                                 FLAGS.lanczos_iter)
-=======
-            server.init_alg(FLAGS.dpsgd,
-                            FLAGS.fedavg, 
-                            FLAGS.weiavg, 
-                            FLAGS.projection, 
-                            FLAGS.delayed, 
-                            FLAGS.proj_dims, 
-                            FLAGS.lanczos_iter)
-            Vk, mean = None, None
->>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
 
             # initial local update
             #local = LocalUpdate(x_train, y_train, client_set, hp.bs, data_placeholder, labels_placeholder)
@@ -288,13 +273,7 @@ def main(unused_argv):
                     # 1. Simulate that clients download the global model from server.
                     # in here, we set the trainable Variables in the graph to the values stored in feed_dict 'model'
                     clients[cid].download_model(sess, assignments, set_global_step, model)
-<<<<<<< HEAD
-                    #print(model['dense_1/bias_placeholder:0'])
-=======
-                    if FLAGS.projection and FLAGS.delayed:
-                        clients[cid].set_projection(Vk, mean, is_private=(cid not in server.public))
 
->>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
                     # 2. clients update the model locally
                     update, accum_bgts = clients[cid].local_update(sess, model, global_steps)
 
