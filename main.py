@@ -82,6 +82,7 @@ flags.DEFINE_boolean('weiavg', False, 'If True, train with weighted averaging.')
 flags.DEFINE_boolean('fedavg', False, 'If True, train with fedavg.')
 # Projection flags
 flags.DEFINE_boolean('projection', False, 'If True, use projection.')
+flags.DEFINE_boolean('proj_wavg', False, 'If True, use the weighted projection.')
 flags.DEFINE_integer('proj_dims', 1, 'The dimensions of subspace.')
 flags.DEFINE_integer('lanczos_iter', 256, 'Projection method.')
 
@@ -187,7 +188,7 @@ def main(unused_argv):
   
     # Prepare server (simulation)
     server = Server(FLAGS.N, FLAGS.sample_mode, FLAGS.sample_ratio)
-    if FLAGS.projection:
+    if FLAGS.projection or FLAGS.proj_wavg:
         server.set_public_clients(priv_preferences) 
 
     # pre-define the number of server-clients communication rounds
@@ -252,6 +253,7 @@ def main(unused_argv):
                                 FLAGS.fedavg, 
                                 FLAGS.weiavg, 
                                 FLAGS.projection, 
+                                FLAGS.proj_wavg,
                                 FLAGS.proj_dims, 
                                 FLAGS.lanczos_iter)
 
@@ -283,14 +285,13 @@ def main(unused_argv):
                     # in here, we set the trainable Variables in the graph to the values stored in feed_dict 'model'
                     clients[cid].download_model(sess, assignments, set_global_step, model)
                     #print(model['dense_1/bias_placeholder:0'])
-
                     # 2. clients update the model locally
                     update, accum_bgts = clients[cid].local_update(sess, model, global_steps)
 
                     if accum_bgts is not None:
                         max_accum_bgts = max(max_accum_bgts, accum_bgts)
-
-                    server.aggregate(cid, update)
+                    
+                    server.aggregate(cid, update, FLAGS.projection, FLAGS.proj_wavg)
 
                     if FLAGS.dpsgd:
                         print('For client %d and delta=%f, the budget is %f and the left budget is: %f' %

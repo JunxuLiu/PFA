@@ -45,10 +45,11 @@ def save_progress(FLAGS, model, Accuracy_accountant, Budgets_accountant=None):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    filename = "{}{}{}{}{}{}".format( FLAGS.N, 
+    filename = "{}{}{}{}{}{}{}".format( FLAGS.N, 
                                     ('-fedavg' if FLAGS.fedavg else ''), 
                                     ('-wavg' if FLAGS.weiavg else ''), 
                                     ('-pro{}_{}'.format(FLAGS.proj_dims, FLAGS.lanczos_iter) if FLAGS.projection else ''),
+                                    ('-wpro{}_{}'.format(FLAGS.proj_dims, FLAGS.lanczos_iter) if FLAGS.proj_wavg else ''),
                                     '-{}-bs{}'.format(FLAGS.local_steps, FLAGS.client_batch_size), 
                                     ('-decaylr{}'.format(FLAGS.lr) if FLAGS.lr_decay else '-constlr{}'.format(FLAGS.lr)) )
 

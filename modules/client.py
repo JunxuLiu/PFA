@@ -64,7 +64,7 @@ class Client(object):
 
         # local SGD then get the model updates
         for it in range(self.loc_steps):
-
+        
             # batch_ind holds the indices of the current batch
             batch_ind = np.random.permutation(self.dataset_size)[0:self.batch_size]
             x_batch = self.x_train[[int(j) for j in batch_ind]]
