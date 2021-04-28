@@ -16,19 +16,6 @@ import tensorflow.compat.v1 as tf
 import numpy as np
 np.random.seed(10)
 
-def check_labels(N, client_set, y_train):
-    labels_set = []
-    for cid in range(N):
-        idx = [int(val) for val in client_set[cid]]
-        labels_set.append(set(np.array(y_train)[idx]))
-
-        labels_count = [0]*10
-        for label in np.array(y_train)[idx]:
-            labels_count[int(label)] += 1
-        print('cid: {}, number of labels: {}/10.'.format(cid, len(labels_set[cid])))
-        print(labels_count)
-
-
 def save_progress(FLAGS, model, Accuracy_accountant, Budgets_accountant=None):
     '''
     This function saves our progress either in an existing file structure or writes a new file.
@@ -52,12 +39,7 @@ def save_progress(FLAGS, model, Accuracy_accountant, Budgets_accountant=None):
                                     ('-wpro{}_{}'.format(FLAGS.proj_dims, FLAGS.lanczos_iter) if FLAGS.proj_wavg else ''),
                                     '-{}-bs{}'.format(FLAGS.local_steps, FLAGS.client_batch_size), 
                                     ('-decaylr{}'.format(FLAGS.lr) if FLAGS.lr_decay else '-constlr{}'.format(FLAGS.lr)) )
-
-    '''
-    filehandler = open(filename + '.pkl', "wb")
-    pickle.dump(model, filehandler)
-    filehandler.close()
-    '''
+                                    
     with open(os.path.join(save_dir, filename + '.csv'), "w") as csvfile:
         writer = csv.writer(csvfile, delimiter=',')
         if FLAGS.dpsgd:

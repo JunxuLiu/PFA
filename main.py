@@ -8,13 +8,11 @@ from __future__ import print_function
 from absl import app
 from absl import flags
 
-
 import os
 import pickle
 import math
 import time
 import re
-#import copy
 import tensorflow.compat.v1 as tf
 import numpy as np
 
@@ -24,12 +22,12 @@ from modules.client import Client
 from modules.server import Server
 from modules.budgets_accountant import BudgetsAccountant
 
-from utils.data_reader import load_dataset
-from utils.create_clients import create_iid_clients, create_noniid_clients
-from utils.tools import check_labels, save_progress, print_loss_and_accuracy, print_new_comm_round
-from utils.dpsgd import set_epsilons, compute_noise_multiplier
-from utils.tf_frame import global_step_creator, Vname_to_FeedPname, Vname_to_Pname
-from utils.hparams import HParams
+from simulation.datasets import data_reader
+from simulation.clients import create_clients
+
+from common_utils import dpsgd_utils, main_utils
+from common_utils.tf_utils import global_step_creator, Vname_to_FeedPname, Vname_to_Pname
+from modules.hparams import HParams
 np.random.seed(10)
 
 config = tf.ConfigProto()
@@ -82,13 +80,16 @@ flags.DEFINE_boolean('weiavg', False, 'If True, train with weighted averaging.')
 flags.DEFINE_boolean('fedavg', False, 'If True, train with fedavg.')
 # Projection flags
 flags.DEFINE_boolean('projection', False, 'If True, use projection.')
+<<<<<<< HEAD
 flags.DEFINE_boolean('proj_wavg', False, 'If True, use the weighted projection.')
+=======
+flags.DEFINE_boolean('delayed', False, 'If True, use projection.')
+>>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
 flags.DEFINE_integer('proj_dims', 1, 'The dimensions of subspace.')
 flags.DEFINE_integer('lanczos_iter', 256, 'Projection method.')
-
 # save dir flags
-flags.DEFINE_integer('version', 2, 'version of dataset.')
-flags.DEFINE_string('save_dir', 'res', 'results directory')
+flags.DEFINE_integer('version', 1, 'version of dataset.')
+flags.DEFINE_string('save_dir', 'res', 'Model directory')
 flags.DEFINE_string('log', os.path.join(os.getenv('TEST_TMPDIR', '/tmp'),
                   'tensorflow/mnist/logs'), 'Log data directory')
 FLAGS = flags.FLAGS
@@ -97,7 +98,7 @@ FLAGS = flags.FLAGS
 def prepare_local_data(project_path, dataset, nclients, noniid, version):
 
     # universal set
-    x_train, y_train, x_test, y_test = load_dataset(project_path, dataset)
+    x_train, y_train, x_test, y_test = data_reader.load_dataset(project_path, dataset)
     print('x_train:{} y_train:{} / x_test:{}, y_test:{}'.format(\
           len(x_train), len(y_train), len(x_test), len(y_test)))
 
@@ -109,10 +110,10 @@ def prepare_local_data(project_path, dataset, nclients, noniid, version):
     client_dataset_size = len(x_train) // nclients if FLAGS.client_dataset_size is None \
                           else FLAGS.client_dataset_size
     if not noniid:
-        client_set = create_iid_clients(nclients, len(x_train), 10,
+        client_set = create_clients.create_iid_clients(nclients, len(x_train), 10,
                                       client_dataset_size, client_set_path)
     else:
-        client_set = create_noniid_clients(nclients, len(x_train), 10, 
+        client_set = create_clients.create_noniid_clients(nclients, len(x_train), 10, 
                                       client_dataset_size, FLAGS.noniid_level, client_set_path)
 
     labels = [0]*10
@@ -126,18 +127,10 @@ def prepare_priv_preferences(epsfile, num_clients):
 
     epsilons = None
     if FLAGS.dpsgd:
-        epsilons = set_epsilons(epsfile, num_clients)
+        epsilons = dpsgd_utils.set_epsilons(epsfile, num_clients)
     return epsilons
 
 def main(unused_argv):
-
-    #print('hello world.')
-    #print(flags.fedavg, (re.search('min', flags.eps) or re.search('max', flags.eps)))
-    """
-    if re.search('min', FLAGS.eps) or re.search('max', FLAGS.eps):
-        assert FLAGS.fedavg, 'min or max setting are only applicable for fedavg case.'
-    """
-    print(FLAGS.model)
 
     hp = HParams(loc_batch_size=FLAGS.client_batch_size, 
                 loc_num_microbatches=FLAGS.num_microbatches, 
@@ -151,7 +144,7 @@ def main(unused_argv):
     x_train, y_train, x_test, y_test, client_set = \
             prepare_local_data(project_path, FLAGS.dataset, FLAGS.N, FLAGS.noniid, FLAGS.version)
   
-    check_labels(FLAGS.N, client_set, y_train) # print and check
+    create_clients.check_labels(FLAGS.N, client_set, y_train) # print and check
     print('client dataset size: {}'.format(len(client_set[0])))
 
     # Prepare all clients (simulation)
@@ -175,7 +168,7 @@ def main(unused_argv):
             # `noise_multiplier` is a parameter in tf_privacy package, which is also the gaussian distribution parameter for random noise.
             epsilon = priv_preferences[cid]
             delta = FLAGS.delta
-            noise_multiplier = compute_noise_multiplier(N=client.dataset_size,
+            noise_multiplier = dpsgd_utils.compute_noise_multiplier(N=client.dataset_size,
                                                         L=hp.bs,
                                                         T=hp.glob_steps * FLAGS.sample_ratio,
                                                         epsilon=epsilon,
@@ -249,6 +242,7 @@ def main(unused_argv):
 
             # initial global model and errors
             model = server.init_global_model(sess)
+<<<<<<< HEAD
             alg = server.init_alg(FLAGS.dpsgd,
                                 FLAGS.fedavg, 
                                 FLAGS.weiavg, 
@@ -256,12 +250,22 @@ def main(unused_argv):
                                 FLAGS.proj_wavg,
                                 FLAGS.proj_dims, 
                                 FLAGS.lanczos_iter)
+=======
+            server.init_alg(FLAGS.dpsgd,
+                            FLAGS.fedavg, 
+                            FLAGS.weiavg, 
+                            FLAGS.projection, 
+                            FLAGS.delayed, 
+                            FLAGS.proj_dims, 
+                            FLAGS.lanczos_iter)
+            Vk, mean = None, None
+>>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
 
             # initial local update
             #local = LocalUpdate(x_train, y_train, client_set, hp.bs, data_placeholder, labels_placeholder)
 
             for r in range(COMM_ROUND):
-                print_new_comm_round(r)
+                main_utils.print_new_comm_round(r)
                 comm_start_time = time.time()
                 # precheck and pick up the candidates who can take the next commiunication round.
                 candidates = [ cid for cid in range(FLAGS.N) if clients[cid].precheck() ]
@@ -276,15 +280,21 @@ def main(unused_argv):
                 
                 print('==== participants in round {} includes: ====\n {} '.format(r, participants))
                 max_accum_bgts = 0
-                ############################################################################################################
+                #####################################################
                 # For each client c (out of the m chosen ones):
                 for cid in participants:
-                    #########################################################################################################
+                    #####################################################
                     # Start local update
                     # 1. Simulate that clients download the global model from server.
                     # in here, we set the trainable Variables in the graph to the values stored in feed_dict 'model'
                     clients[cid].download_model(sess, assignments, set_global_step, model)
+<<<<<<< HEAD
                     #print(model['dense_1/bias_placeholder:0'])
+=======
+                    if FLAGS.projection and FLAGS.delayed:
+                        clients[cid].set_projection(Vk, mean, is_private=(cid not in server.public))
+
+>>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
                     # 2. clients update the model locally
                     update, accum_bgts = clients[cid].local_update(sess, model, global_steps)
 
@@ -297,14 +307,14 @@ def main(unused_argv):
                         print('For client %d and delta=%f, the budget is %f and the left budget is: %f' %
                             (cid, delta, clients[cid].ba.epsilon, clients[cid].ba.accum_bgts))
 
-                    # print('local update procedure time:', time.time() - start_time)
                     # End of the local update
-                    ############################################################################################################
+                    #####################################################
 
-                # average and update the global model, apply_gradients(grads_and_vars, global_step)
+                # average and update the global model
+                model = server.update( model, eps_list=(priv_preferences[participants] if FLAGS.weiavg else None) )
+                if FLAGS.projection and FLAGS.delayed:
+                    Vk, mean = server.get_proj_info()
 
-                model = server.update( model, eps_list=(np.array(priv_preferences)[participants] if FLAGS.weiavg else None) )
-                #model['global_step_placeholder:0'] = real_global_steps
                 # Setting the trainable Variables in the graph to the values stored in feed_dict 'model'
                 sess.run(assignments, feed_dict=model)
 
@@ -321,11 +331,11 @@ def main(unused_argv):
 
                 if FLAGS.dpsgd:
                     privacy_accountant.append(max_accum_bgts)
-                    save_progress(FLAGS, model, accuracy_accountant, privacy_accountant)
+                    main_utils.save_progress(FLAGS, model, accuracy_accountant, privacy_accountant)
                 else:
-                    save_progress(FLAGS, model, accuracy_accountant)
+                    main_utils.save_progress(FLAGS, model, accuracy_accountant)
 
-                print_loss_and_accuracy(global_loss, accuracy, stage='test')
+                main_utils.print_loss_and_accuracy(global_loss, accuracy, stage='test')
                 print('time of one communication:', time.time() - comm_start_time)
               
     print('Done! The procedure time:', time.time() - start_time)
