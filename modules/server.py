@@ -233,7 +233,7 @@ class WeiPFA(ServerOperation):
         idx = T_evals.argsort()[-1 : -(self.proj_dims+1) : -1]
         Vk = np.dot(V.T, T_evecs[:,idx])
         return Vk
-
+    '''
     def __weighted_project_priv_updates(self, num_vars, shape_vars):
         
         print(len(self.__priv_updates), len(self.__pub_updates))
@@ -265,6 +265,37 @@ class WeiPFA(ServerOperation):
 
         else:
             raise ValueError('Cannot process the projection without private local updates.')
+    '''
+    def __weighted_project_priv_updates(self, num_vars, shape_vars):
+
+        if len(self.__priv_updates):
+            
+            priv_weights = np.array(self.__priv_eps) / sum(self.__priv_eps)
+            pub_weights = np.array(self.__pub_eps) / sum(self.__priv_eps)
+            print(priv_weights, pub_weights)
+            mean_priv_updates = [np.average(self.__priv_updates[i], 0, priv_weights) \
+                                for i in range(num_vars)]
+            mean_pub_updates = [np.average(self.__pub_updates[i], 0, pub_weights) \
+                                for i in range(num_vars)]
+            mean_proj_priv_updates = [0] * num_vars
+            mean_updates = [0] * num_vars
+            
+            for i in range(num_vars):
+                pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
+                Vk = self.__eigen_by_lanczos(pub_updates.T)
+                mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, (mean_priv_updates[i] - mean))) + mean
+                mean_updates[i] = ((mean_proj_priv_updates[i] * sum(self.__priv_eps) + mean_pub_updates[i] * sum(self.__pub_eps)) / sum(self.__priv_eps + self.__pub_eps)).reshape(shape_vars[i])
+
+            return mean_updates
+
+        elif len(self.__pub_updates) and not len(self.__priv_updates):
+
+            mean_updates = [np.mean(self.__pub_updates[i], 0).reshape(shape_vars[i]) for i in range(num_vars)]
+            return mean_updates
+
+        else:
+            raise ValueError('Cannot process the projection without private local updates.')
+    
 
     def average(self, num_vars, shape_vars, eps_list=None):
         mean_updates = self.__weighted_project_priv_updates(num_vars, shape_vars)
@@ -303,7 +334,6 @@ class Server(object):
 
         keys = [Vname_to_FeedPname(var) for var in tf.trainable_variables()]
         global_model = dict(zip(keys, [sess.run(var) for var in tf.trainable_variables()]))
-        #global_model['global_step_placeholder:0'] = 0
 
         return global_model
 
@@ -373,7 +403,6 @@ class Server(object):
         heap = [] # [(new_weight, item), ...]
         for i in items:
             wi = weights[i]
-
             if len(heap) < m:
                 heapq.heappush(heap, (wi, i))
             elif wi > heap[0][0]:
