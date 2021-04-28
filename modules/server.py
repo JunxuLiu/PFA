@@ -68,7 +68,7 @@ class FedAvg(ServerOperation):
     def average(self, num_vars=None, shape_vars=None, eps_subset=None):
         mean_updates = [np.average(self.__updates[i], 0).reshape(shape_vars[i]) \
                         for i in range(num_vars)]
-        self.updates = []
+        self.__updates = []
         return mean_updates
 
 
@@ -338,12 +338,8 @@ class Server(object):
         self.sample_mode = sample_mode
         self.sample_ratio = sample_ratio
 
-<<<<<<< HEAD
-        self.__public = None
-        self.__epsilons = None
-=======
         self.public = None
->>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
+        self.__epsilons = None
 
     '''clustering'''
     def set_public_clients(self, epsilons):
@@ -352,13 +348,8 @@ class Server(object):
         sorted_eps = np.sort(epsilons) 
         percent = 0.1
         threshold = sorted_eps[-int(percent * self.num_clients)]
-<<<<<<< HEAD
         
-        self.__public = list(np.where(np.array(epsilons) >= threshold)[0])
-=======
-
         self.public = list(np.where(np.array(epsilons) >= threshold)[0])
->>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
         
 
     def init_global_model(self, sess):
@@ -370,11 +361,7 @@ class Server(object):
 
 
     def init_alg(self, dp=True, fedavg=False, weiavg=False, \
-<<<<<<< HEAD
                 projection=False, proj_wavg=True, proj_dims=None, lanczos_iter=None):
-=======
-                projection=True, delay=False, proj_dims=None, lanczos_iter=None):
->>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
     
         if fedavg or (not dp):
             self.__alg = FedAvg()
@@ -394,21 +381,11 @@ class Server(object):
         else:
             raise ValueError('Choose an algorithm (FedAvg/WeiAvg/Pfizer) to get the aggregated model.')
 
-<<<<<<< HEAD
     def aggregate(self, cid, update, projection=False, proj_wavg=False):
         if projection:
-            self.__alg.aggregate(update, is_public=True if (cid in self.__public) else False)
-        elif proj_wavg:
-            self.__alg.aggregate(self.__epsilons[cid], update, is_public=True if (cid in self.__public) else False)
-=======
-    def get_proj_info(self):
-        return self.__alg.Vk, self.__alg.mean
-
-    def aggregate(self, cid, update):
-
-        if self.public:
             self.__alg.aggregate(update, is_public=True if (cid in self.public) else False)
->>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
+        elif proj_wavg:
+            self.__alg.aggregate(self.__epsilons[cid], update, is_public=True if (cid in self.public) else False)
         else:
             self.__alg.aggregate(update)
 
