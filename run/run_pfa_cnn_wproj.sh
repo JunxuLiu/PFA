@@ -27,7 +27,15 @@ dataset='mnist'
 ########## Pfizer ###########
 for element in ${distributions[@]}; do {
 for i in 20 30 40 50; do {
+<<<<<<< HEAD
 for learning_rate in 0.01 0.005 0.001; do {
+=======
+<<<<<<< HEAD
+for learning_rate in 0.025 0.05; do {
+=======
+for learning_rate in 0.005 0.0075; do {
+>>>>>>> 9d3ea00288c01531b75f15dd8658a8305270bf4d
+>>>>>>> bda3e5881a38170c65add448fec3a4140f42f949
 
 # cnn-iid
 log_dir=${log_path}'/log_'$vid'/'${dataset}'/cnn/iid/'${element}
@@ -46,10 +54,24 @@ wait
 wait
 } done
 wait
+<<<<<<< HEAD
 !
 for element in ${distributions[@]}; do {
 for i in 20 30 40 50; do {
 for learning_rate in 0.01 0.005 0.001; do {
+=======
+
+<<<<<<< HEAD
+for element in ${distributions[@]}; do {
+for i in 20 30 40 50; do {
+for learning_rate in 0.025 0.05; do {
+=======
+:<<!
+for element in ${distributions[@]}; do {
+for i in 20 30 40 50; do {
+for learning_rate in 0.025 0.05 0.01; do {
+>>>>>>> 9d3ea00288c01531b75f15dd8658a8305270bf4d
+>>>>>>> bda3e5881a38170c65add448fec3a4140f42f949
 
 # cnn-noniid-bs4
 log_dir=${log_path}'/log_'$vid'/'${dataset}'/cnn/noniid'${noniid_level}'/'${element}

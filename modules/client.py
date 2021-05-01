@@ -16,6 +16,8 @@ import tensorflow.compat.v1 as tf
 import numpy as np
 import scipy
 import time
+from operator import mul
+from functools import reduce
 
 from modules.budgets_accountant import BudgetsAccountant
 
@@ -90,12 +92,25 @@ class Client(object):
         
         updates = [model[Vname_to_FeedPname(var)] - sess.run(var) for var in tf.trainable_variables()]
 
+        num_params1 = 0
+        for u in updates:
+            num_params1 += reduce(mul, u.shape)
+            #print(reduce(mul, u.shape))
+        Bytes1 = num_params1*4
+        #print('num_params: {}, Bytes: {}, M: {}'.format(num_params1, Bytes1, Bytes1/(1024*1024)))
+
         if (self.Vk is not None) and self.is_private:
             update_1d = [u.flatten() for u in updates]
             updates = [ np.dot(self.Vk[i].T, update_1d[i]-self.mean[i]) for i in range(len(update_1d)) ]
-        print('update[0].shape: {}'.format(updates[0].shape))
+
+        num_params2 = 0
+        for u in updates:
+            num_params2 += reduce(mul, u.shape)
+            #print(reduce(mul, u.shape))
+        Bytes2 = num_params2*4
+        #print('After: num_params: {}, Bytes: {}, M: {}'.format(num_params2, Bytes2, Bytes2/(1024*1024)))
 
         # update the budget accountant
         accum_bgts = self.ba.update(self.loc_steps) if self.ba is not None else None
 
-        return updates, accum_bgts
+        return updates, accum_bgts, Bytes1, Bytes2

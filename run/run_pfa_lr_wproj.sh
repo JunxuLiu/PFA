@@ -1,5 +1,14 @@
 #!/bin/bash
 
+<<<<<<< HEAD
+=======
+# python main.py --max_steps 10000 --dataset mnist --model lr --lr 0.005 --N 50 --client_dataset_size 1200 --noniid True --noniid_level 10 --num_microbatches 4 --client_batch_size 4 --sample_mode R --sample_ratio 0.8 --local_steps 100 --dpsgd True --eps mixgauss3 --proj_wavg True --proj_dims 2 --lanczos_iter 256 --version 2 --save_dir res_test
+
+# python main.py --max_steps 10000 --dataset mnist --model lr --lr 0.005 --N 50 --client_dataset_size 1200 --num_microbatches 4 --client_batch_size 4 --sample_mode R --sample_ratio 0.8 --local_steps 100 --dpsgd True --eps mixgauss3 --proj_wavg True --proj_dims 2 --lanczos_iter 256 --version 2 --save_dir res_test
+
+# python main.py --max_steps 10000 --dataset mnist --model lr --lr 0.005 --N 20 --client_dataset_size 1200 --num_microbatches 4 --client_batch_size 4 --sample_mode R --sample_ratio 0.8 --local_steps 100 --dpsgd True --eps mixgauss3 --proj_wavg True --delay True --proj_dims 2 --lanczos_iter 256 --version 2 --save_dir res_test_new
+
+>>>>>>> bda3e5881a38170c65add448fec3a4140f42f949
 vid=2
 noniid_level=10
 local_steps=100

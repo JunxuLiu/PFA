@@ -16,7 +16,7 @@ import tensorflow.compat.v1 as tf
 import numpy as np
 np.random.seed(10)
 
-def save_progress(FLAGS, model, Accuracy_accountant, Budgets_accountant=None):
+def save_progress(FLAGS, model, Accuracy_accountant, Budgets_accountant=None, nbytes1=None, nbytes2=None):
     '''
     This function saves our progress either in an existing file structure or writes a new file.
     :param save_dir: STRING: The directory where to save the progress.
@@ -44,6 +44,9 @@ def save_progress(FLAGS, model, Accuracy_accountant, Budgets_accountant=None):
         writer = csv.writer(csvfile, delimiter=',')
         if FLAGS.dpsgd:
             writer.writerow(Budgets_accountant)
+        if FLAGS.delay:
+            writer.writerow(nbytes1)
+            writer.writerow(nbytes2)
         writer.writerow(Accuracy_accountant)
 
 
