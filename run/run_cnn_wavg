@@ -1,5 +1,14 @@
 nohup: ignoring input
+<<<<<<< HEAD
 ../PFA_res/log_wproj_1200/log_2/mnist/cnn/iid/mixgauss3-20
 ../PFA_res/log_wproj_1200/log_2/mnist/cnn/noniid10/mixgauss3-20
 ../PFA_res/log_wproj_1200/log_2/mnist/cnn/iid/mixgauss3-20
 ../PFA_res/log_wproj_1200/log_2/mnist/cnn/noniid10/mixgauss3-20
+=======
+../PFA_res/log_wproj_1200/log_2/mnist/cnn/iid/mixgauss2-20
+../PFA_res/log_wproj_1200/log_2/mnist/cnn/noniid10/mixgauss2-20
+../PFA_res/log_wproj_1200/log_2/mnist/cnn/iid/mixgauss2-20
+../PFA_res/log_wproj_1200/log_2/mnist/cnn/noniid10/mixgauss2-20
+../PFA_res/log_wproj_1200/log_2/mnist/cnn/iid/mixgauss2-20
+../PFA_res/log_wproj_1200/log_2/mnist/cnn/noniid10/mixgauss2-20
+>>>>>>> 9d3ea00288c01531b75f15dd8658a8305270bf4d

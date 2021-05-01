@@ -10,7 +10,11 @@ save_dir='../PFA_res/res_wproj_'${dataset_size}
 #distributions=('mixgauss1' 'mixgauss2' 'mixgauss4' 'mixgauss5' 'gauss1' 'pareto1' 'uniform1')
 #distributions=('mixgauss4' 'mixgauss5' 'gauss2' 'pareto1' 'uniform1')
 #distributions=('min1' 'mixgauss1' 'gauss1' 'pareto1' 'uniform1')
+<<<<<<< HEAD
 distributions=('mixgauss3')
+=======
+distributions=('mixgauss2')
+>>>>>>> 9d3ea00288c01531b75f15dd8658a8305270bf4d
 #distributions=('min1' 'min2' 'max1' 'max2')
 
 dataset='mnist'
@@ -19,7 +23,11 @@ dataset='mnist'
 
 for element in ${distributions[@]}; do {
 for i in 20; do {
+<<<<<<< HEAD
 for learning_rate in 0.001 0.005; do {
+=======
+for learning_rate in 0.025 0.05 0.01; do {
+>>>>>>> 9d3ea00288c01531b75f15dd8658a8305270bf4d
 
 # cnn-iid-bs4
 log_dir=${log_path}'/log_'$vid'/'${dataset}'/cnn/iid/'${element}

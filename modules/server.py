@@ -68,7 +68,7 @@ class FedAvg(ServerOperation):
     def average(self, num_vars=None, shape_vars=None, eps_subset=None):
         mean_updates = [np.average(self.__updates[i], 0).reshape(shape_vars[i]) \
                         for i in range(num_vars)]
-        self.updates = []
+        self.__updates = []
         return mean_updates
 
 
@@ -416,7 +416,11 @@ class Server(object):
 
 
     def init_alg(self, dp=True, fedavg=False, weiavg=False, \
+<<<<<<< HEAD
                 projection=False, proj_wavg=True, delay=True, proj_dims=None, lanczos_iter=None):
+=======
+                projection=False, proj_wavg=True, proj_dims=None, lanczos_iter=None):
+>>>>>>> 9d3ea00288c01531b75f15dd8658a8305270bf4d
     
         if fedavg or (not dp):
             self.__alg = FedAvg()
@@ -436,9 +440,12 @@ class Server(object):
         else:
             raise ValueError('Choose an algorithm (FedAvg/WeiAvg/Pfizer) to get the aggregated model.')
 
+<<<<<<< HEAD
     def get_proj_info(self):
         return self.__alg.Vk, self.__alg.mean
 
+=======
+>>>>>>> 9d3ea00288c01531b75f15dd8658a8305270bf4d
     def aggregate(self, cid, update, projection=False, proj_wavg=False):
         if projection:
             self.__alg.aggregate(update, is_public=True if (cid in self.public) else False)
