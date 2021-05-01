@@ -81,10 +81,7 @@ flags.DEFINE_boolean('fedavg', False, 'If True, train with fedavg.')
 # Projection flags
 flags.DEFINE_boolean('projection', False, 'If True, use projection.')
 flags.DEFINE_boolean('proj_wavg', False, 'If True, use the weighted projection.')
-<<<<<<< HEAD
 flags.DEFINE_boolean('delay', False, 'If True, use the delayed aggregation.')
-=======
->>>>>>> 9d3ea00288c01531b75f15dd8658a8305270bf4d
 flags.DEFINE_integer('proj_dims', 1, 'The dimensions of subspace.')
 flags.DEFINE_integer('lanczos_iter', 256, 'Projection method.')
 # save dir flags
@@ -249,15 +246,12 @@ def main(unused_argv):
                                 FLAGS.delay,
                                 FLAGS.proj_dims, 
                                 FLAGS.lanczos_iter)
-<<<<<<< HEAD
             
             Vk, mean = None, None
             accum_nbytes1 = 0 # before pfaplus
             accum_nbytes2 = 0 # after pfaplus
             accum_nbytes_list1 = []
             accum_nbytes_list2 = []
-=======
->>>>>>> 9d3ea00288c01531b75f15dd8658a8305270bf4d
 
             # initial local update
             #local = LocalUpdate(x_train, y_train, client_set, hp.bs, data_placeholder, labels_placeholder)
@@ -286,11 +280,7 @@ def main(unused_argv):
                     # 1. Simulate that clients download the global model from server.
                     # in here, we set the trainable Variables in the graph to the values stored in feed_dict 'model'
                     clients[cid].download_model(sess, assignments, set_global_step, model)
-<<<<<<< HEAD
                     #print(model['dense_1/bias_placeholder:0'])
-=======
-
->>>>>>> 9d3ea00288c01531b75f15dd8658a8305270bf4d
                     # 2. clients update the model locally
                     update, accum_bgts, bytes1, bytes2 = clients[cid].local_update(sess, model, global_steps)
                     accum_nbytes1 += (bytes1)/(1024*1024)
