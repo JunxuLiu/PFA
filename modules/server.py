@@ -283,9 +283,13 @@ class WeiPFA(ServerOperation):
     def __eigen_by_lanczos(self, mat):
         T, V = Lanczos(mat, self.lanczos_iter)
         T_evals, T_evecs = np.linalg.eig(T)
+
         idx = T_evals.argsort()[-1 : -(self.proj_dims+1) : -1]
         Vk = np.dot(V.T, T_evecs[:,idx])
+        #sorted_vec = sorted(T_evals, reverse=True)
+        #print(sorted_vec)
         return Vk
+
     '''
     def __weighted_project_priv_updates(self, num_vars, shape_vars):
         
@@ -319,12 +323,12 @@ class WeiPFA(ServerOperation):
         else:
             raise ValueError('Cannot process the projection without private local updates.')
     '''
+    
     def __weighted_project_priv_updates(self, num_vars, shape_vars):
 
         if len(self.__priv_updates):
-            
             priv_weights = np.array(self.__priv_eps) / sum(self.__priv_eps)
-            pub_weights = np.array(self.__pub_eps) / sum(self.__priv_eps)
+            pub_weights = np.array(self.__pub_eps) / sum(self.__pub_eps)
             print(priv_weights, pub_weights)
             mean_priv_updates = [np.average(self.__priv_updates[i], 0, priv_weights) \
                                 for i in range(num_vars)]

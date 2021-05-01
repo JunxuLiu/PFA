@@ -1,7 +1,12 @@
 #!/bin/bash
 
 # python main.py --max_steps 10000 --dataset mnist --model cnn --lr 0.075 --N 20 --client_dataset_size 1200 --noniid True --noniid_level 10 --num_microbatches 4 --client_batch_size 4 --sample_mode R --sample_ratio 0.8 --local_steps 100 --dpsgd True --eps mixgauss2 --proj_wavg True --proj_dims 1 --lanczos_iter 256 --version 2 --save_dir res_test
-# python main.py --max_steps 10000 --dataset mnist --model cnn --lr 0.005 --N 20 --client_dataset_size 1200 --noniid True --noniid_level 10 --num_microbatches 4 --client_batch_size 4 --sample_mode R --sample_ratio 0.8 --local_steps 100 --dpsgd True --eps mixgauss2 --weiavg True --version 2 --save_dir res_test
+
+# python main.py --max_steps 10000 --dataset mnist --model cnn --lr 0.01 --N 20 --client_dataset_size 1200 --num_microbatches 4 --client_batch_size 4 --sample_mode R --sample_ratio 0.8 --local_steps 100 --dpsgd True --eps mixgauss3 --projection True --proj_dims 2 --lanczos_iter 256 --version 2 --save_dir res_test
+
+# python main.py --max_steps 10000 --dataset mnist --model cnn --lr 0.005 --N 50 --client_dataset_size 1200 --num_microbatches 4 --client_batch_size 4 --sample_mode R --sample_ratio 0.8 --local_steps 100 --dpsgd True --eps mixgauss2 --proj_wavg True --proj_dims 2 --lanczos_iter 256 --version 2 --save_dir res_test
+
+# nohup python main.py --max_steps 10000 --dataset mnist --model cnn --lr 0.01 --N 20 --client_dataset_size 1200 --noniid True --noniid_level 10 --num_microbatches 4 --client_batch_size 4 --sample_mode R --sample_ratio 0.8 --local_steps 100 --dpsgd True --eps mixgauss2 --proj_wavg True --proj_dims 2 --lanczos_iter 256 --version 2 --save_dir res_test_k >log_test_k 2>&1 &
 
 vid=2
 noniid_level=10
@@ -18,11 +23,11 @@ distributions=('mixgauss2')
 #distributions=('min1' 'min2' 'max1' 'max2')
 
 dataset='mnist'
-
+:<<!
 ########## Pfizer ###########
 for element in ${distributions[@]}; do {
 for i in 20 30 40 50; do {
-for learning_rate in 0.005 0.0075; do {
+for learning_rate in 0.01 0.005 0.001; do {
 
 # cnn-iid
 log_dir=${log_path}'/log_'$vid'/'${dataset}'/cnn/iid/'${element}
@@ -39,13 +44,12 @@ nohup python main.py --max_steps 10000 --dataset $dataset --model cnn --lr $lear
 wait
 } done 
 wait
-} done 
+} done
 wait
-
-:<<!
+!
 for element in ${distributions[@]}; do {
 for i in 20 30 40 50; do {
-for learning_rate in 0.025 0.05 0.01; do {
+for learning_rate in 0.01 0.005 0.001; do {
 
 # cnn-noniid-bs4
 log_dir=${log_path}'/log_'$vid'/'${dataset}'/cnn/noniid'${noniid_level}'/'${element}
@@ -63,4 +67,3 @@ wait
 wait
 } done 
 wait
-!

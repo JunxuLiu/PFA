@@ -18,8 +18,8 @@ dataset='mnist'
 ########## cnn wavg/fedavg ###########
 
 for element in ${distributions[@]}; do {
-for i in 20; do {
-for learning_rate in 0.025 0.05 0.01; do {
+for i in 20 30 40 50; do {
+for learning_rate in 0.001 0.005 0.01 0.025 0.05; do {
 
 # cnn-iid-bs4
 log_dir=${log_path}'/log_'$vid'/'${dataset}'/cnn/iid/'${element}
