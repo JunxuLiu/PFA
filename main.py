@@ -80,11 +80,8 @@ flags.DEFINE_boolean('weiavg', False, 'If True, train with weighted averaging.')
 flags.DEFINE_boolean('fedavg', False, 'If True, train with fedavg.')
 # Projection flags
 flags.DEFINE_boolean('projection', False, 'If True, use projection.')
-<<<<<<< HEAD
 flags.DEFINE_boolean('proj_wavg', False, 'If True, use the weighted projection.')
-=======
-flags.DEFINE_boolean('delayed', False, 'If True, use projection.')
->>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
+flags.DEFINE_boolean('delay', False, 'If True, use the delayed aggregation.')
 flags.DEFINE_integer('proj_dims', 1, 'The dimensions of subspace.')
 flags.DEFINE_integer('lanczos_iter', 256, 'Projection method.')
 # save dir flags
@@ -212,8 +209,7 @@ def main(unused_argv):
         train_op_list, eval_op, loss, global_steps, data_placeholder, labels_placeholder = model.get_model(FLAGS.N)
         # clients download the model from server
         for cid in range(FLAGS.N):
-            clients[cid].set_ops( train_op_list[cid], eval_op, loss, 
-                                data_placeholder, labels_placeholder )
+            clients[cid].set_ops( train_op_list[cid], eval_op, loss, data_placeholder, labels_placeholder )
 
         # increase and set global step
         real_global_steps = 0
@@ -242,24 +238,20 @@ def main(unused_argv):
 
             # initial global model and errors
             model = server.init_global_model(sess)
-<<<<<<< HEAD
             alg = server.init_alg(FLAGS.dpsgd,
                                 FLAGS.fedavg, 
                                 FLAGS.weiavg, 
                                 FLAGS.projection, 
                                 FLAGS.proj_wavg,
+                                FLAGS.delay,
                                 FLAGS.proj_dims, 
                                 FLAGS.lanczos_iter)
-=======
-            server.init_alg(FLAGS.dpsgd,
-                            FLAGS.fedavg, 
-                            FLAGS.weiavg, 
-                            FLAGS.projection, 
-                            FLAGS.delayed, 
-                            FLAGS.proj_dims, 
-                            FLAGS.lanczos_iter)
+            
             Vk, mean = None, None
->>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
+            accum_nbytes1 = 0 # before pfaplus
+            accum_nbytes2 = 0 # after pfaplus
+            accum_nbytes_list1 = []
+            accum_nbytes_list2 = []
 
             # initial local update
             #local = LocalUpdate(x_train, y_train, client_set, hp.bs, data_placeholder, labels_placeholder)
@@ -288,15 +280,11 @@ def main(unused_argv):
                     # 1. Simulate that clients download the global model from server.
                     # in here, we set the trainable Variables in the graph to the values stored in feed_dict 'model'
                     clients[cid].download_model(sess, assignments, set_global_step, model)
-<<<<<<< HEAD
                     #print(model['dense_1/bias_placeholder:0'])
-=======
-                    if FLAGS.projection and FLAGS.delayed:
-                        clients[cid].set_projection(Vk, mean, is_private=(cid not in server.public))
-
->>>>>>> 36cf09ae021192c156e381c87137847d92d2c250
                     # 2. clients update the model locally
-                    update, accum_bgts = clients[cid].local_update(sess, model, global_steps)
+                    update, accum_bgts, bytes1, bytes2 = clients[cid].local_update(sess, model, global_steps)
+                    accum_nbytes1 += (bytes1)/(1024*1024)
+                    accum_nbytes2 += (bytes2)/(1024*1024)
 
                     if accum_bgts is not None:
                         max_accum_bgts = max(max_accum_bgts, accum_bgts)
@@ -312,7 +300,7 @@ def main(unused_argv):
 
                 # average and update the global model
                 model = server.update( model, eps_list=(priv_preferences[participants] if FLAGS.weiavg else None) )
-                if FLAGS.projection and FLAGS.delayed:
+                if (FLAGS.projection or FLAGS.proj_wavg) and FLAGS.delay:
                     Vk, mean = server.get_proj_info()
 
                 # Setting the trainable Variables in the graph to the values stored in feed_dict 'model'
@@ -328,10 +316,16 @@ def main(unused_argv):
                 count = sess.run(eval_op, feed_dict=feed_dict)
                 accuracy = float(count) / float(len(y_test))
                 accuracy_accountant.append(accuracy)
-
+                
                 if FLAGS.dpsgd:
                     privacy_accountant.append(max_accum_bgts)
-                    main_utils.save_progress(FLAGS, model, accuracy_accountant, privacy_accountant)
+                    if FLAGS.delay:
+                        accum_nbytes_list1.append(accum_nbytes1)
+                        accum_nbytes_list2.append(accum_nbytes2)
+                        main_utils.save_progress(FLAGS, model, accuracy_accountant, privacy_accountant, accum_nbytes_list1, accum_nbytes_list2)
+                    else:
+                        main_utils.save_progress(FLAGS, model, accuracy_accountant, privacy_accountant)
+
                 else:
                     main_utils.save_progress(FLAGS, model, accuracy_accountant)
 
