@@ -221,6 +221,7 @@ class PFA(ServerOperation):
 
 
     def average(self, num_vars, shape_vars, eps_list=None):
+
         if self.delay:
             mean_updates = self.__delayed_projection(num_vars, shape_vars, warmup=(self.Vk is None))
         else:
@@ -296,7 +297,7 @@ class WeiPFA(ServerOperation):
             
             priv_weights = np.array(self.__priv_eps) / sum(self.__priv_eps)
             pub_weights = np.array(self.__pub_eps) / sum(self.__pub_eps)
-            print(priv_weights, pub_weights)
+            #print(priv_weights, pub_weights)
             mean_priv_updates = [np.average(self.__priv_updates[i], 0, priv_weights) \
                                 for i in range(num_vars)]
             mean_pub_updates = [np.average(self.__pub_updates[i], 0, pub_weights) \
@@ -321,12 +322,11 @@ class WeiPFA(ServerOperation):
             raise ValueError('Cannot process the projection without private local updates.')
     
     
-    def __delayed_weighted_project_priv_updates(self, num_vars, shape_vars):
+    def __delayed_weighted_project_priv_updates(self, num_vars, shape_vars, warmup=False):
 
         if len(self.__priv_updates):
             priv_weights = np.array(self.__priv_eps) / sum(self.__priv_eps)
             pub_weights = np.array(self.__pub_eps) / sum(self.__pub_eps)
-            print(priv_weights, pub_weights)
 
             mean_pub_updates = [np.average(self.__pub_updates[i], 0, pub_weights) \
                                 for i in range(num_vars)]
@@ -337,6 +337,7 @@ class WeiPFA(ServerOperation):
 
             Vks = []
             means = []
+
             if warmup:
                 for i in range(num_vars):
 
@@ -347,13 +348,12 @@ class WeiPFA(ServerOperation):
                     
                     mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, (mean_priv_updates[i] - mean))) + mean
                     mean_updates[i] = ((sum(self.__priv_eps) * mean_proj_priv_updates[i] + sum(self.__pub_eps) * mean_pub_updates[i]) /
-                                    (sum(self.__priv_eps + self.__pub_eps))).reshape(shape_vars[i])
-                    
-
+                                    (sum(self.__priv_eps) + sum(self.__pub_eps))).reshape(shape_vars[i])
             else:
                 for i in range(num_vars):
-
+                
                     mean_proj_priv_updates[i] = np.dot(self.Vk[i], mean_priv_updates[i]) + self.mean[i]
+                    
                     mean_updates[i] = ((sum(self.__priv_eps) * mean_proj_priv_updates[i] + sum(self.__pub_eps) * mean_pub_updates[i]) /
                                     (sum(self.__priv_eps + self.__pub_eps))).reshape(shape_vars[i])
 
@@ -376,7 +376,11 @@ class WeiPFA(ServerOperation):
             raise ValueError('Cannot process the projection without private local updates.')
 
     def average(self, num_vars, shape_vars, eps_list=None):
-        mean_updates = self.__weighted_project_priv_updates(num_vars, shape_vars)
+        if not self.delay:
+            mean_updates = self.__weighted_project_priv_updates(num_vars, shape_vars)
+        else:
+            mean_updates = self.__delayed_weighted_project_priv_updates(num_vars, shape_vars, warmup=(self.Vk is None))
+
         self.__num_pub = 0
         self.__num_priv = 0
         self.__priv_updates = []

@@ -65,7 +65,6 @@ class Client(object):
         sess.run(set_global_step, feed_dict={'global_step_placeholder:0':self.global_steps})
         
     def set_projection(self, Vk=None, mean=None, is_private=False):
-
         self.Vk = Vk
         self.mean = mean
         self.is_private = is_private
@@ -97,8 +96,8 @@ class Client(object):
             num_params1 += reduce(mul, u.shape)
             #print(reduce(mul, u.shape))
         Bytes1 = num_params1*4
-        #print('num_params: {}, Bytes: {}, M: {}'.format(num_params1, Bytes1, Bytes1/(1024*1024)))
-
+        print('num_params: {}, Bytes: {}, M: {}'.format(num_params1, Bytes1, Bytes1/(1024*1024)))
+        
         if (self.Vk is not None) and self.is_private:
             update_1d = [u.flatten() for u in updates]
             updates = [ np.dot(self.Vk[i].T, update_1d[i]-self.mean[i]) for i in range(len(update_1d)) ]
@@ -108,7 +107,7 @@ class Client(object):
             num_params2 += reduce(mul, u.shape)
             #print(reduce(mul, u.shape))
         Bytes2 = num_params2*4
-        #print('After: num_params: {}, Bytes: {}, M: {}'.format(num_params2, Bytes2, Bytes2/(1024*1024)))
+        print('After: num_params: {}, Bytes: {}, M: {}'.format(num_params2, Bytes2, Bytes2/(1024*1024)))
 
         # update the budget accountant
         accum_bgts = self.ba.update(self.loc_steps) if self.ba is not None else None

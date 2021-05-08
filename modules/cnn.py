@@ -34,6 +34,8 @@ import abc
 import numpy as np
 
 import tensorflow.compat.v1 as tf
+from tensorflow.keras import datasets, layers, models
+
 from tensorflow_privacy.privacy.optimizers import dp_optimizer
 from tensorflow_privacy.privacy.analysis import privacy_ledger
 
@@ -121,6 +123,7 @@ class CNN(Model):
 
     def __cnn_cifar10(self, features):
         """Given input features, returns the logits from a simple CNN model."""
+        '''
         model = models.Sequential()
         model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)))
         model.add(layers.MaxPooling2D((2, 2)))
@@ -130,6 +133,23 @@ class CNN(Model):
         model.add(layers.Flatten())
         model.add(layers.Dense(64, activation='relu'))
         model.add(layers.Dense(10))
+        '''
+        input_layer = tf.reshape(features, [-1, 32, 32, 3])
+        y = tf.keras.layers.Conv2D(
+        32, 3, strides=3, padding='same', activation='relu').apply(input_layer)
+        y = tf.keras.layers.MaxPool2D(2, 2).apply(y)
+        y = tf.keras.layers.Conv2D(
+        64, 3, strides=3, padding='valid', activation='relu').apply(y)
+        y = tf.keras.layers.MaxPool2D(2, 2).apply(y)
+        y = tf.keras.layers.Conv2D(
+        64, 3, strides=3, padding='valid', activation='relu').apply(y)
+        y = tf.keras.layers.MaxPool2D(2, 2).apply(y)
+        y = tf.keras.layers.Flatten().apply(y)
+        y = tf.keras.layers.Dense(64, activation='relu').apply(y)
+        logits = tf.keras.layers.Dense(10).apply(y)
+        return logits
+
+
 
         return model
 

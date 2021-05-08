@@ -11,10 +11,12 @@ save_dir='../PFA_res/res_wproj_'${dataset_size}
 #distributions=('mixgauss1' 'mixgauss2' 'mixgauss4' 'mixgauss5' 'gauss1' 'pareto1' 'uniform1')
 #distributions=('mixgauss4' 'mixgauss5' 'gauss2' 'pareto1' 'uniform1')
 #distributions=('min1' 'mixgauss1' 'gauss1' 'pareto1' 'uniform1')
-distributions=('mixgauss2')
+distributions=('mixgauss3')
 #distributions=('min1' 'min2' 'max1' 'max2')
 
-dataset='mnist'
+python main.py --max_steps 10000 --dataset cifar10 --model cnn --lr 0.01 --N 20 --client_dataset_size 1200 --num_microbatches 4 --client_batch_size 4 --sample_mode R --sample_ratio 0.8 --local_steps 100 --dpsgd True --eps mixgauss2 --projection True --proj_dims 2 --lanczos_iter 256 --version 2 --save_dir res_test
+
+dataset='fmnist'
 
 ########## Pfizer ###########
 for element in ${distributions[@]}; do {

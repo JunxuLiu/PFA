@@ -3,7 +3,9 @@ import struct
 import numpy as np
 import pickle
 import tensorflow.compat.v1 as tf
-#import cifar10
+from tensorflow.keras import datasets, layers, models
+
+from simulation.datasets import cifar10
 """
 Loosely inspired by http://abel.ee.ucla.edu/cvxopt/_downloads/mnist.py
 which is GPL licensed.
@@ -37,6 +39,7 @@ def read_mnist(dataset = "training", data_path = "."):
     return img, lbl
 
 def read_cifar10(dataset = "training", data_path = "."):
+
     if dataset == "training":
         img, lbl = cifar10.load_training_data(data_path)
     
@@ -54,14 +57,17 @@ def read_cifar10(dataset = "training", data_path = "."):
     return img, lbl
 
 def load_dataset(path, dataset):
+    print(path, dataset)
     # load the data
-    if dataset == 'mnist' or 'fmnist':
-        data_path = os.path.join(path, 'dataset', dataset)
+    if dataset == 'mnist' or dataset == 'fmnist':
+        
+        data_path = os.path.join(path, dataset)
         x_train, y_train = read_mnist('training', data_path)
         x_test, y_test = read_mnist('testing', data_path)
        
     elif dataset == 'cifar10':
-        data_path = os.path.join(path, 'dataset', dataset)
+        
+        data_path = os.path.join(path, dataset)
         x_train, y_train = read_cifar10('training', data_path)
         x_test, y_test = read_cifar10('testing', data_path)
     

@@ -94,13 +94,16 @@ FLAGS = flags.FLAGS
 
 def prepare_local_data(project_path, dataset, nclients, noniid, version):
 
+    
+    data_path = os.path.abspath(os.path.join(project_path,"..","PFA_res","dataset"))
+    print(data_path)
     # universal set
-    x_train, y_train, x_test, y_test = data_reader.load_dataset(project_path, dataset)
+    x_train, y_train, x_test, y_test = data_reader.load_dataset(data_path, dataset)
     print('x_train:{} y_train:{} / x_test:{}, y_test:{}'.format(\
           len(x_train), len(y_train), len(x_test), len(y_test)))
 
     # split the universal
-    client_set_path = os.path.join(project_path, 'dataset', dataset, 'clients', 
+    client_set_path = os.path.join(data_path, dataset, 'clients', 
                                   ('noniid' if noniid else 'iid'), 
                                   'v{}'.format(version))
 
@@ -137,6 +140,7 @@ def main(unused_argv):
                 loc_l2_norm=FLAGS.l2_norm_clip)
 
     project_path = os.getcwd()
+    print(project_path)
     # prepare the local dataset all clients
     x_train, y_train, x_test, y_test, client_set = \
             prepare_local_data(project_path, FLAGS.dataset, FLAGS.N, FLAGS.noniid, FLAGS.version)
@@ -280,6 +284,9 @@ def main(unused_argv):
                     # 1. Simulate that clients download the global model from server.
                     # in here, we set the trainable Variables in the graph to the values stored in feed_dict 'model'
                     clients[cid].download_model(sess, assignments, set_global_step, model)
+                    if Vk is not None:
+                        clients[cid].set_projection(Vk, mean, is_private=(cid not in server.public))
+
                     #print(model['dense_1/bias_placeholder:0'])
                     # 2. clients update the model locally
                     update, accum_bgts, bytes1, bytes2 = clients[cid].local_update(sess, model, global_steps)
