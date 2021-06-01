@@ -132,6 +132,7 @@ class PFA(ServerOperation):
         '''Compute the mean of every dimension of the whole dataset'''
         [n, m] = M.shape
         if m == 1:
+            print(m==1)
             return M, np.zeros(n)
         # calculate the mean 
         mean = np.dot(M,np.ones((m,1), dtype=np.float32)) / m
@@ -305,11 +306,16 @@ class WeiPFA(ServerOperation):
             mean_proj_priv_updates = [0] * num_vars
             mean_updates = [0] * num_vars
             
+            print(num_vars)
             for i in range(num_vars):
+                print('__pub_updates[{}].shape: {}'.format(i, self.__pub_updates[i].shape))
                 pub_updates, mean = self.__standardize(self.__pub_updates[i].T)
+                print('pub_updates[{}].shape: {}'.format(i, pub_updates[i].shape))
                 Vk = self.__eigen_by_lanczos(pub_updates.T)
+                print('Vk.shape: {}'.format(Vk.shape))
                 mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, (mean_priv_updates[i] - mean))) + mean
-                mean_updates[i] = ((mean_proj_priv_updates[i] * sum(self.__priv_eps) + mean_pub_updates[i] * sum(self.__pub_eps)) / sum(self.__priv_eps + self.__pub_eps)).reshape(shape_vars[i])
+                mean_updates[i] = ((mean_proj_priv_updates[i] * sum(self.__priv_eps) + mean_pub_updates[i] * sum(self.__pub_eps)) 
+                                    / sum(self.__priv_eps + self.__pub_eps)).reshape(shape_vars[i])
 
             return mean_updates
 

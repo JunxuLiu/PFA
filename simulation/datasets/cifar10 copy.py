@@ -148,6 +148,7 @@ def _load_data(data_path, filename):
 
     return images, cls
 
+
 ########################################################################
 # Public functions that you may call to download the data-set from
 # the internet and load the data into memory.
@@ -158,7 +159,6 @@ def maybe_download_and_extract():
     Download and extract the CIFAR-10 data-set if it doesn't already exist
     in data_path (set this variable first to the desired path).
     """
-
     download.maybe_download_and_extract(url=data_url, download_dir=data_path)
 '''
 
@@ -168,7 +168,6 @@ def load_class_names():
     Returns a list with the names. Example: names[3] is the name
     associated with class-number 3.
     """
-
     # Load the class-names from the pickled file.
     raw = _unpickle(filename="batches.meta")[b'label_names']
 
@@ -220,7 +219,9 @@ def load_test_data(data_path):
     Load all the test-data for the CIFAR-10 data-set.
     Returns the images, class-numbers and one-hot encoded class-labels.
     """
+
     images, cls = _load_data(data_path, filename="test_batch")
+
     return images, cls
 
 ########################################################################

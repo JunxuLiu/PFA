@@ -3,7 +3,9 @@ import struct
 import numpy as np
 import pickle
 import tensorflow.compat.v1 as tf
-#import cifar10
+from tensorflow.keras import datasets, layers, models
+from tf_cifar10.cifar10_input import cifar10, cifar10_input
+#from simulation.datasets import cifar10
 """
 Loosely inspired by http://abel.ee.ucla.edu/cvxopt/_downloads/mnist.py
 which is GPL licensed.
@@ -30,6 +32,7 @@ def read_mnist(dataset = "training", data_path = "."):
     with open(fname_img, 'rb') as fimg:
         magic, num, rows, cols = struct.unpack(">IIII", fimg.read(16))
         img = np.fromfile(fimg, dtype=np.uint8).reshape(len(lbl), rows, cols)
+
     # Reshape and normalize
     print('shape of img:', img.shape)
     img = np.reshape(img, [img.shape[0], img.shape[1] * img.shape[2]])*1.0/255.0
@@ -37,30 +40,36 @@ def read_mnist(dataset = "training", data_path = "."):
     return img, lbl
 
 def read_cifar10(dataset = "training", data_path = "."):
+
     if dataset == "training":
-        img, lbl = cifar10.load_training_data(data_path)
-    
+        #img, lbl = cifar10.load_training_data(data_path)
+        img, lbl = cifar10_input.distorted_inputs(data_dir=data_path, batch_size=6000)
+
     elif dataset == "testing":
         img, lbl = cifar10.load_test_data(data_path)
 
     else:
         raise(ValueError, "dataset must be 'testing' or 'training'")
 
+    
+
     # Reshape and normalize
     print('shape of img:', img.shape)
-    img = img / 255.0
-    #img = np.reshape(img, [img.shape[0], img.shape[1] * img.shape[2] * img.shape[3]])*1.0/255.0
+    img = np.reshape(img, [img.shape[0], img.shape[1] * img.shape[2] * img.shape[3]])
 
     return img, lbl
 
 def load_dataset(path, dataset):
+    print(path, dataset)
     # load the data
-    if dataset == 'mnist' or 'fmnist':
+    if dataset == 'mnist' or dataset == 'fmnist':
+        
         data_path = os.path.join(path, dataset)
         x_train, y_train = read_mnist('training', data_path)
         x_test, y_test = read_mnist('testing', data_path)
        
     elif dataset == 'cifar10':
+        
         data_path = os.path.join(path, dataset)
         x_train, y_train = read_cifar10('training', data_path)
         x_test, y_test = read_cifar10('testing', data_path)

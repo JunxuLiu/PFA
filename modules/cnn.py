@@ -35,6 +35,8 @@ import numpy as np
 
 import tensorflow.compat.v1 as tf
 from tensorflow.keras import datasets, layers, models
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Activation, Flatten,Conv2D, MaxPooling2D
 
 from tensorflow_privacy.privacy.optimizers import dp_optimizer
 from tensorflow_privacy.privacy.analysis import privacy_ledger
@@ -104,7 +106,7 @@ class CNN(Model):
         labels_placeholder = tf.placeholder(tf.int32, shape=(None), name='labels_placeholder')
         return images_placeholder, labels_placeholder
 
-
+    
     def __cnn_mnist(self, features):
         """tensorflow/privacy"""
         """Given input features, returns the logits from a simple CNN model."""
@@ -120,38 +122,180 @@ class CNN(Model):
         logits = tf.keras.layers.Dense(10).apply(y)
         return logits
 
-
     def __cnn_cifar10(self, features):
-        """Given input features, returns the logits from a simple CNN model."""
-        '''
-        model = models.Sequential()
-        model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)))
-        model.add(layers.MaxPooling2D((2, 2)))
-        model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-        model.add(layers.MaxPooling2D((2, 2)))
-        model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-        model.add(layers.Flatten())
-        model.add(layers.Dense(64, activation='relu'))
-        model.add(layers.Dense(10))
-        '''
+        '''Given input features, returns the logits from a simple CNN model.'''
         input_layer = tf.reshape(features, [-1, 32, 32, 3])
         y = tf.keras.layers.Conv2D(
-        32, 3, strides=3, padding='same', activation='relu').apply(input_layer)
-        y = tf.keras.layers.MaxPool2D(2, 2).apply(y)
+        filters=32, kernel_size=3, strides=1, padding='same', activation='relu').apply(input_layer)
+        y = tf.keras.layers.MaxPool2D((2,2)).apply(y)
+        y = tf.keras.layers.Dropout(0.25).apply(y)
         y = tf.keras.layers.Conv2D(
-        64, 3, strides=3, padding='valid', activation='relu').apply(y)
-        y = tf.keras.layers.MaxPool2D(2, 2).apply(y)
+        filters=64, kernel_size=3, strides=1, padding='same', activation='relu').apply(y)
+        y = tf.keras.layers.MaxPool2D((2,2)).apply(y)
+        y = tf.keras.layers.Dropout(0.25).apply(y)
         y = tf.keras.layers.Conv2D(
-        64, 3, strides=3, padding='valid', activation='relu').apply(y)
-        y = tf.keras.layers.MaxPool2D(2, 2).apply(y)
+        filters=128, kernel_size=3, strides=1, padding='same', activation='relu').apply(y)
+        y = tf.keras.layers.MaxPool2D((2,2)).apply(y)
+        y = tf.keras.layers.Dropout(0.25).apply(y)
+
         y = tf.keras.layers.Flatten().apply(y)
-        y = tf.keras.layers.Dense(64, activation='relu').apply(y)
-        logits = tf.keras.layers.Dense(10).apply(y)
+        y = tf.keras.layers.Dropout(0.25).apply(y)
+        y = tf.keras.layers.Dense(1024, activation='relu').apply(y)
+        y = tf.keras.layers.Dropout(0.25).apply(y)
+        logits = tf.keras.layers.Dense(10, activation='softmax').apply(y)
         return logits
+        
+    
+    def _variable_with_weight_decay(self, name, shape, stddev, wd):
+        '''
+        帮助创建一个权重衰减的初始化变量
+        
+        请注意，变量是用截断的正态分布初始化的
+        只有在指定了权重衰减时才会添加权重衰减
+        
+        Args:
+        name: 变量的名称
+        shape: 整数列表
+        stddev: 截断高斯的标准差
+        wd: 加L2Loss权重衰减乘以这个浮点数.如果没有，此变量不会添加权重衰减.
+        
+        Returns:
+        变量张量
+        '''
+        var = self._variable_on_cpu(name, shape,
+                            tf.truncated_normal_initializer(stddev=stddev))
+        if wd is not None:
+            weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
+            tf.add_to_collection('losses', weight_decay)
+        return var
 
 
+    def _variable_on_cpu(self, name, shape, initializer):
+        '''
+        帮助创建存储在CPU内存上的变量
+        ARGS：
+        name：变量的名称
+        shape：整数列表
+        initializer：变量的初始化操作
+        返回：
+        变量张量
+        '''
+        with tf.device('/cpu:0'): #用 with tf.device 创建一个设备环境, 这个环境下的 operation 都统一运行在环境指定的设备上.
+            var = tf.get_variable(name, shape, initializer=initializer)
+        return var
 
-        return model
+    def _activation_summary(self, x):
+        '''
+        为激活创建summary
+        
+        添加一个激活直方图的summary
+        添加一个测量激活稀疏度的summary
+        
+        ARGS：
+        x：张量
+        返回：
+        没有
+        '''
+        # 如果这是多GPU训练，请从名称中删除'tower_ [0-9] /'.这有助于张量板上显示的清晰度.
+        tensor_name = re.sub('%s_[0-9]*/' % TOWER_NAME, '', x.op.name)
+        tf.summary.histogram(tensor_name + '/activations', x)
+        tf.summary.scalar(tensor_name + '/sparsity',tf.nn.zero_fraction(x))
+
+    def inference(self, images):
+        """
+        构建CIFAR-10模型
+        ARGS：
+        images：从distorted_inputs（）或inputs（）返回的图像
+        返回：
+        Logits
+        """
+        # 我们使用tf.get_variable（）而不是tf.Variable（）来实例化所有变量，以便跨多个GPU训练时能共享变量
+        # 如果我们只在单个GPU上运行此模型，我们可以通过用tf.Variable（）替换tf.get_variable（）的所有实例来简化此功能
+        
+        # conv1-第一层卷积
+        with tf.variable_scope('conv1') as scope: #每一层都创建于一个唯一的tf.name_scope之下，创建于该作用域之下的所有元素都将带有其前缀
+            # 5*5 的卷积核，64个
+            kernel = self._variable_with_weight_decay('weights', shape=[5, 5, 3, 64],
+                                            stddev=1e-4, wd=0.0)
+            # 卷积操作，步长为1，0padding SAME，不改变宽高，通道数变为64
+            conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
+            # 在CPU上创建第一层卷积操作的偏置变量
+            biases = self._variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
+            # 加上偏置
+            bias = tf.nn.bias_add(conv, biases)
+            # relu非线性激活
+            conv1 = tf.nn.relu(bias, name=scope.name)
+            # 创建激活显示图的summary
+            self._activation_summary(conv1)
+            
+        # pool1-第一层pooling
+        # 3*3 最大池化，步长为2
+        pool1 = tf.nn.max_pool(conv1, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
+                            padding='SAME', name='pool1')
+        # norm1-局部响应归一化
+        # LRN层，对局部神经元的活动创建竞争机制，使得其中响应比较大的值变得相对更大，并抑制其他反馈较小的神经元，增强了模型的泛化能力
+        norm1 = tf.nn.lrn(pool1, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75,
+                        name='norm1')
+
+        # conv2-第二层卷积
+        with tf.variable_scope('conv2') as scope:
+            # 卷积核：5*5 ,64个
+            kernel = self._variable_with_weight_decay('weights', shape=[5, 5, 64, 64],
+                                            stddev=1e-4, wd=0.0)
+            conv = tf.nn.conv2d(norm1, kernel, [1, 1, 1, 1], padding='SAME')
+            biases = self._variable_on_cpu('biases', [64], tf.constant_initializer(0.1))
+            bias = tf.nn.bias_add(conv, biases)
+            conv2 = tf.nn.relu(bias, name=scope.name)
+            self._activation_summary(conv2)
+
+        # norm2-局部响应归一化
+        norm2 = tf.nn.lrn(conv2, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75,
+                        name='norm2')
+        # pool2-第二层最大池化
+        pool2 = tf.nn.max_pool(norm2, ksize=[1, 3, 3, 1],
+                            strides=[1, 2, 2, 1], padding='SAME', name='pool2')
+
+        # local3-全连接层，384个节点
+        with tf.variable_scope('local3') as scope:
+            # 把单个样本的特征拼成一个大的列向量，以便我们可以执行单个矩阵乘法
+            dim = 1
+            for d in pool2.get_shape()[1:].as_list():
+                dim *= d
+            reshape = tf.reshape(pool2, [FLAGS.batch_size, dim])
+            
+            # 权重
+            weights = _variable_with_weight_decay('weights', shape=[dim, 384],
+                                            stddev=0.04, wd=0.004)
+            # 偏置
+            biases = _variable_on_cpu('biases', [384], tf.constant_initializer(0.1))
+            # relu激活
+            local3 = tf.nn.relu(tf.matmul(reshape, weights) + biases, name=scope.name)
+            #生成summary
+            _activation_summary(local3)
+
+        # local4-全连接层，192个节点
+        with tf.variable_scope('local4') as scope:
+            weights = _variable_with_weight_decay('weights', shape=[384, 192],
+                                            stddev=0.04, wd=0.004)
+            biases = _variable_on_cpu('biases', [192], tf.constant_initializer(0.1))
+            local4 = tf.nn.relu(tf.matmul(local3, weights) + biases, name=scope.name)
+            _activation_summary(local4)
+
+        # softmax, i.e. softmax(WX + b)
+        # 输出层
+        with tf.variable_scope('softmax_linear') as scope:
+            # 权重
+            weights = _variable_with_weight_decay('weights', [192, NUM_CLASSES],
+                                            stddev=1/192.0, wd=0.0)
+            # 偏置
+            biases = _variable_on_cpu('biases', [NUM_CLASSES],
+                                tf.constant_initializer(0.0))
+            # 输出层的线性操作
+            softmax_linear = tf.add(tf.matmul(local4, weights), biases, name=scope.name)
+            # 生成summary
+            _activation_summary(softmax_linear)
+        return softmax_linear
+        
 
 
     def build_model(self, features):

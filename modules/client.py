@@ -60,7 +60,6 @@ class Client(object):
             return self.ba.precheck(self.dataset_size, self.batch_size, self.loc_steps)
 
     def download_model(self, sess, assignments, set_global_step, model):
-
         sess.run(assignments, feed_dict=model)
         sess.run(set_global_step, feed_dict={'global_step_placeholder:0':self.global_steps})
         

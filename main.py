@@ -28,7 +28,7 @@ from simulation.clients import create_clients
 from common_utils import dpsgd_utils, main_utils
 from common_utils.tf_utils import global_step_creator, Vname_to_FeedPname, Vname_to_Pname
 from modules.hparams import HParams
-np.random.seed(10)
+# np.random.seed(10)
 
 config = tf.ConfigProto()
 #config.gpu_options.per_process_gpu_memory_fraction = 0.5
@@ -111,10 +111,10 @@ def prepare_local_data(project_path, dataset, nclients, noniid, version):
                           else FLAGS.client_dataset_size
     if not noniid:
         client_set = create_clients.create_iid_clients(nclients, len(x_train), 10,
-                                      client_dataset_size, client_set_path)
+                                    client_dataset_size, client_set_path)
     else:
         client_set = create_clients.create_noniid_clients(nclients, len(x_train), 10, 
-                                      client_dataset_size, FLAGS.noniid_level, client_set_path)
+                                    client_dataset_size, FLAGS.noniid_level, client_set_path)
 
     labels = [0]*10
     for i in y_train:
@@ -147,7 +147,6 @@ def main(unused_argv):
   
     create_clients.check_labels(FLAGS.N, client_set, y_train) # print and check
     print('client dataset size: {}'.format(len(client_set[0])))
-
     # Prepare all clients (simulation)
     # simulate a list of the personal privacy preferences of all clients
     # If FLAGS.dpsgd is False, `prepare_priv_preferences` return None 
@@ -170,10 +169,10 @@ def main(unused_argv):
             epsilon = priv_preferences[cid]
             delta = FLAGS.delta
             noise_multiplier = dpsgd_utils.compute_noise_multiplier(N=client.dataset_size,
-                                                        L=hp.bs,
-                                                        T=hp.glob_steps * FLAGS.sample_ratio,
-                                                        epsilon=epsilon,
-                                                        delta=delta)
+                                                                L=hp.bs,
+                                                                T=hp.glob_steps * FLAGS.sample_ratio,
+                                                                epsilon=epsilon,
+                                                                delta=delta)
             
             ba = BudgetsAccountant(epsilon, delta, noise_multiplier)
             client.set_ba(ba)
@@ -183,7 +182,7 @@ def main(unused_argv):
     # Prepare server (simulation)
     server = Server(FLAGS.N, FLAGS.sample_mode, FLAGS.sample_ratio)
     if FLAGS.projection or FLAGS.proj_wavg:
-        server.set_public_clients(priv_preferences) 
+        server.set_public_clients(priv_preferences)
 
     # pre-define the number of server-clients communication rounds
     COMM_ROUND = hp.glob_steps // hp.loc_steps
@@ -207,7 +206,7 @@ def main(unused_argv):
         if FLAGS.dpsgd:
             model.set_dpsgd_params(l2_norm_clip = FLAGS.l2_norm_clip,
                                 num_microbatches = FLAGS.num_microbatches,
-                                noise_multipliers = [clients[cid].ba.noise_multiplier for cid in range(FLAGS.N)])
+                                noise_multipliers = [ clients[cid].ba.noise_multiplier for cid in range(FLAGS.N) ] )
         
         # build the model on the server side
         train_op_list, eval_op, loss, global_steps, data_placeholder, labels_placeholder = model.get_model(FLAGS.N)
@@ -263,52 +262,73 @@ def main(unused_argv):
             for r in range(COMM_ROUND):
                 main_utils.print_new_comm_round(r)
                 comm_start_time = time.time()
-                # precheck and pick up the candidates who can take the next commiunication round.
-                candidates = [ cid for cid in range(FLAGS.N) if clients[cid].precheck() ]
-                # select the participating clients
-                participants = server.sample_clients(candidates)
-                # if the condition of training cannot be satisfied. 
-                # (no public clients or no sufficient candidates.
-                if len(participants) == 0:
-                    print("the condition of training cannot be satisfied. (no public clients or no sufficient candidates.")
-                    print('Done! The procedure time:', time.time() - start_time)
-                    break
-                
-                print('==== participants in round {} includes: ====\n {} '.format(r, participants))
-                max_accum_bgts = 0
-                #####################################################
-                # For each client c (out of the m chosen ones):
-                for cid in participants:
-                    #####################################################
-                    # Start local update
-                    # 1. Simulate that clients download the global model from server.
-                    # in here, we set the trainable Variables in the graph to the values stored in feed_dict 'model'
-                    clients[cid].download_model(sess, assignments, set_global_step, model)
-                    if Vk is not None:
-                        clients[cid].set_projection(Vk, mean, is_private=(cid not in server.public))
 
-                    #print(model['dense_1/bias_placeholder:0'])
-                    # 2. clients update the model locally
-                    update, accum_bgts, bytes1, bytes2 = clients[cid].local_update(sess, model, global_steps)
-                    accum_nbytes1 += (bytes1)/(1024*1024)
-                    accum_nbytes2 += (bytes2)/(1024*1024)
+                if FLAGS.N == 1:
+                    for it in range(FLAGS.local_steps):
+                        # batch_ind holds the indices of the current batch
+                        batch_ind = np.random.permutation(FLAGS.client_dataset_size)[0:FLAGS.client_batch_size]
+                        x_batch = clients[0].x_train[[int(j) for j in batch_ind]]
+                        y_batch = clients[0].y_train[[int(j) for j in batch_ind]]
 
-                    if accum_bgts is not None:
-                        max_accum_bgts = max(max_accum_bgts, accum_bgts)
+                        # Fill a feed dictionary with the actual set of data and labels using the data and labels associated
+                        # to the indices stored in batch_ind:
+                        feed_dict = {str(data_placeholder.name): x_batch,
+                                    str(labels_placeholder.name): y_batch}
+                        # Run one optimization step.
+                        _ = sess.run(train_op_list[0], feed_dict = feed_dict)
+
+                    #self.global_steps = sess.run(global_steps)
+                    weights = [sess.run(var) for var in tf.trainable_variables()]
+                    keys = [Vname_to_FeedPname(v) for v in tf.trainable_variables()]
+                    model = dict(zip(keys, weights))
+
+                else:
+                    # precheck and pick up the candidates who can take the next commiunication round.
+                    candidates = [ cid for cid in range(FLAGS.N) if clients[cid].precheck() ]
+                    # select the participating clients
+                    participants = server.sample_clients(candidates)
+                    # if the condition of training cannot be satisfied. 
+                    # (no public clients or no sufficient candidates.
+                    if len(participants) == 0:
+                        print("the condition of training cannot be satisfied. (no public clients or no sufficient candidates.")
+                        print('Done! The procedure time:', time.time() - start_time)
+                        break
                     
-                    server.aggregate(cid, update, FLAGS.projection, FLAGS.proj_wavg)
-
-                    if FLAGS.dpsgd:
-                        print('For client %d and delta=%f, the budget is %f and the left budget is: %f' %
-                            (cid, delta, clients[cid].ba.epsilon, clients[cid].ba.accum_bgts))
-
-                    # End of the local update
+                    print('==== participants in round {} includes: ====\n {} '.format(r, participants))
+                    max_accum_bgts = 0
                     #####################################################
+                    # For each client c (out of the m chosen ones):
+                    for cid in participants:
+                        #####################################################
+                        # Start local update
+                        # 1. Simulate that clients download the global model from server.
+                        # in here, we set the trainable Variables in the graph to the values stored in feed_dict 'model'
+                        clients[cid].download_model(sess, assignments, set_global_step, model)
+                        if Vk is not None:
+                            clients[cid].set_projection(Vk, mean, is_private=(cid not in server.public))
 
-                # average and update the global model
-                model = server.update( model, eps_list=(priv_preferences[participants] if FLAGS.weiavg else None) )
-                if (FLAGS.projection or FLAGS.proj_wavg) and FLAGS.delay:
-                    Vk, mean = server.get_proj_info()
+                        #print(model['dense_1/bias_placeholder:0'])
+                        # 2. clients update the model locally
+                        update, accum_bgts, bytes1, bytes2 = clients[cid].local_update(sess, model, global_steps)
+                        accum_nbytes1 += (bytes1)/(1024*1024)
+                        accum_nbytes2 += (bytes2)/(1024*1024)
+
+                        if accum_bgts is not None:
+                            max_accum_bgts = max(max_accum_bgts, accum_bgts)
+                        
+                        server.aggregate(cid, update, FLAGS.projection, FLAGS.proj_wavg)
+
+                        if FLAGS.dpsgd:
+                            print('For client %d and delta=%f, the budget is %f and the left budget is: %f' %
+                                (cid, delta, clients[cid].ba.epsilon, clients[cid].ba.accum_bgts))
+
+                        # End of the local update
+                        #####################################################
+
+                    # average and update the global model
+                    model = server.update( model, eps_list=(priv_preferences[participants] if FLAGS.weiavg else None) )
+                    if (FLAGS.projection or FLAGS.proj_wavg) and FLAGS.delay:
+                        Vk, mean = server.get_proj_info()
 
                 # Setting the trainable Variables in the graph to the values stored in feed_dict 'model'
                 sess.run(assignments, feed_dict=model)
