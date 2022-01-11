@@ -5,7 +5,7 @@
 <!-- GETTING STARTED -->
 ## Getting Started
 
-This is the source code of paper "Projected Federated Averaging with Heterogeneous Differential Privacy"(under review).
+This is the source code of paper "Projected Federated Averaging with Heterogeneous Differential Privacy" (accepted by VLDB 2022).
 
 ### Prerequisites
 
