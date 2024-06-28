@@ -119,7 +119,7 @@ class PFA(ServerOperation):
         aggregate_fn = lambda var1, var2 : self._add_one(num_vars, var1, var2)
         if is_public:
             #print('is_public')
-            self.__num_pub += 1   
+            self.__num_pub += 1
             self.__pub_updates = aggregate_fn(update_1d, self.__pub_updates)
             
         else:
@@ -160,7 +160,6 @@ class PFA(ServerOperation):
                 mean_proj_priv_updates[i] = np.dot(Vk, np.dot(Vk.T, (mean_priv_updates[i] - mean))) + mean
                 mean_updates[i] = ((self.__num_priv * mean_proj_priv_updates[i] + self.__num_pub * mean_pub_updates[i]) /
                                   (self.__num_pub + self.__num_priv)).reshape(shape_vars[i])
-
             return mean_updates
 
         elif len(self.__pub_updates) and not len(self.__priv_updates):
@@ -461,47 +460,6 @@ class Server(object):
     def update(self, global_model, eps_list=None):
         return self.__alg.update(global_model, eps_list)
 
-    def __a_res(items, weights, m):
-        """
-        :samples: [(item, weight), ...]
-        :k: number of selected items
-        :returns: [(item, weight), ...]
-        """
-        weights = np.array(weights) / sum(weights)
-        heap = [] # [(new_weight, item), ...]
-        for i in items:
-            wi = weights[i]
-            ui = np.random.random()
-            ki = ui ** (1/wi)
-
-            if len(heap) < m:
-                heapq.heappush(heap, (ki, i))
-            elif ki > heap[0][0]:
-                heapq.heappush(heap, (ki, i))
-
-            if len(heap) > m:
-                heapq.heappop(heap)
-
-        return [item[1] for item in heap]
-
-    def __naive_weighted_sampling(items, weights, m):
-        weights = np.array(weights) / max(weights)
-        samples = [ item for item in items if np.random.random() <= weights[item] ][0:min(m, len(items))]
-        return samples
-
-    def __top_k(items, weights, m):
-        heap = [] # [(new_weight, item), ...]
-        for i in items:
-            wi = weights[i]
-            if len(heap) < m:
-                heapq.heappush(heap, (wi, i))
-            elif wi > heap[0][0]:
-                heapq.heappush(heap, (wi, i))
-                if len(heap) > m:
-                    heapq.heappop(heap)
-
-        return [item[1] for item in heap]
-
     def sample_clients(self, candidates):
         # Randomly choose a total of m (out of n) client-indices that participate in this round
         # randomly permute a range-list of length n: [1,2,3...n] --> [5,2,7..3]
@@ -517,12 +475,12 @@ class Server(object):
             print('Partial client participation with ramdom client sampling.')
             participants = list(np.random.permutation(candidates))[0:m]
 
-            # Only when we are running Pfizer method, `ba._public` is not None.
+            # Only when we are running PFA method, `ba._public` is not None.
             # For FedAvg or WAVG or MIN/MAX, public clients are not necessary while sampling.
             if self.public is None:
                 return participants
                 
-            # For Pfizer, we require the subset contains at least 1 public and 1 private client.
+            # For PFA, we require the subset contains at least 1 public and 1 private client.
             check = 50
             while check and len(set(participants).intersection(set(self.public))) == 0:
                 check -= 1

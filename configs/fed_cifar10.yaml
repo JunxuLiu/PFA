@@ -1,0 +1,105 @@
+save_dir: experiments/results/fed_cifar10
+# dataset info
+dataset_dir:
+  non-iid: experiments/datasets/fed_cifar10/niid_5way_1200shot
+  iid_10: experiments/datasets/fed_cifar10/iid_10
+  iid_50: experiments/datasets/fed_cifar10/iid_50
+num_labels: 10
+# for fedavg experiments
+fedavg:
+  num_clients: 10
+  num_steps: 50
+  num_rounds: 15
+  client_rate: 0.8
+  batch_size: 32
+  learning_rate: 0.005
+dpfedavg:
+  learning_rate: 0.001
+  max_grad_norm: 1.0
+  max_physical_batch_size: 32
+  target_epsilon: 5.0
+  target_delta: 0.001
+rpdpfedavg:
+  max_epsilon: 10.0
+  min_epsilon: 0.1
+  settings: {
+      ThreeLevels: [
+          [[0.7,0.2,0.1], [0.1, 1.0, 5.0]]
+        ],
+      BoundedPareto: [
+          [4, 0.1]
+        ], 
+      BoundedMixGauss: [
+          [[0.7,0.2,0.1], [[0.1, 0.05], [1.0, 0.1], [5.0, 0.5]]]
+        ],
+    }
+# for sgd experiments
+sgd:
+  num_epochs: 10
+  batch_size: 128
+  learning_rate: 0.0005
+  logging_interval: 50
+dpsgd:
+  num_epochs: 10
+  batch_size: 128
+  learning_rate: 0.0005
+  target_epsilon: 5.0
+  target_delta: 0.0001
+  max_grad_norm: 1.2
+  max_physical_batch_size: 128
+rpdpsgd:
+  max_epsilon: 10.0
+
+
+# flags.DEFINE_enum('model', 'cnn', ['lr', 'cnn', '2nn'], 
+#                 'Which model to use. This can be a convolutional model (cnn)'
+#                 'or a two hidden-layer densely connected network (2nn).')
+# flags.DEFINE_boolean('noniid', False, 'If True, train with noniid data.')
+# flags.DEFINE_integer('noniid_level', 10, 'Level of noniid.')
+# flags.DEFINE_integer('N', 10,
+#                    'Total number of clients.')
+# flags.DEFINE_integer('max_steps', 10000,
+#                    'Total number of communication round.')
+# flags.DEFINE_integer('local_steps', 100,
+#                    'The round gap between two consecutive communications.')
+# flags.DEFINE_integer('client_dataset_size', None,
+#                    'If None, set the default value.')
+# flags.DEFINE_integer('client_batch_size', 4,
+#                    'Batch size used on the client.')
+# flags.DEFINE_integer('num_microbatches', 4, 'Number of microbatches '
+#                            '(must evenly divide batch_size)')
+
+# # learning rate
+# flags.DEFINE_boolean('lr_decay', False, 'If True, learning rate decays.')
+# flags.DEFINE_float('lr', 0.1, 'Learning rate for local update procedure.')
+
+# # Differential privacy flags
+# flags.DEFINE_boolean('dpsgd', False, 'If True, train with DP-SGD. '
+#                    'If False, train with vanilla SGD.')
+# flags.DEFINE_string('eps', None, 'epsilon file name.')
+# flags.DEFINE_float('delta', 1e-5, 'DP parameter Delta.')
+# flags.DEFINE_float('l2_norm_clip', 1.0, 'Clipping norm')
+
+# # Personalized privacy flags
+# flags.DEFINE_enum('sample_mode', 'R', ['R','W1','W2'],
+#                   'R for random sample, W for weighted sample and '
+#                   'None for full participation.')
+# flags.DEFINE_float('sample_ratio', 0.8, 'Sample ratio.')
+
+# # minimum epsilon
+# flags.DEFINE_boolean('min', False, 'If True, train eps_min dp.')
+# # weighted average
+# flags.DEFINE_boolean('weiavg', False, 'If True, train with weighted averaging.')
+# # fedavg
+# flags.DEFINE_boolean('fedavg', False, 'If True, train with fedavg.')
+# # Projection flags
+# flags.DEFINE_boolean('projection', False, 'If True, use projection.')
+# flags.DEFINE_boolean('proj_wavg', False, 'If True, use the weighted projection.')
+# flags.DEFINE_boolean('delay', False, 'If True, use the delayed aggregation.')
+# flags.DEFINE_integer('proj_dims', 1, 'The dimensions of subspace.')
+# flags.DEFINE_integer('lanczos_iter', 256, 'Projection method.')
+# # save dir flags
+# flags.DEFINE_integer('version', 1, 'version of dataset.')
+# flags.DEFINE_string('save_dir', 'res', 'Model directory')
+# flags.DEFINE_string('log', os.path.join(os.getenv('TEST_TMPDIR', '/tmp'),
+#                   'tensorflow/mnist/logs'), 'Log data directory')
