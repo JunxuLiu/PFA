@@ -3,7 +3,7 @@ import struct
 import numpy as np
 import pickle
 import tensorflow.compat.v1 as tf
-#import cifar10
+import cifar10
 """
 Loosely inspired by http://abel.ee.ucla.edu/cvxopt/_downloads/mnist.py
 which is GPL licensed.

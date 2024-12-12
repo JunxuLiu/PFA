@@ -159,7 +159,6 @@ def maybe_download_and_extract():
     Download and extract the CIFAR-10 data-set if it doesn't already exist
     in data_path (set this variable first to the desired path).
     """
-
     download.maybe_download_and_extract(url=data_url, download_dir=data_path)
 '''
 
@@ -169,7 +168,6 @@ def load_class_names():
     Returns a list with the names. Example: names[3] is the name
     associated with class-number 3.
     """
-
     # Load the class-names from the pickled file.
     raw = _unpickle(filename="batches.meta")[b'label_names']
 
